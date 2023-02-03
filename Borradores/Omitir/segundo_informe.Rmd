@@ -1,0 +1,1611 @@
+---
+title: 'Informe II: análisis de supervivencia aplicado al tiempo de permanencia en
+  Unidad de Cuidados Intensivos'
+author: "Sergio A. Barona M."
+date: "15/06/2022"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Introducción
+
+En lo sucesivo, se presenta un análisis de supervivencia aplicado a un
+evento de interés, a saber, la salida de pacientes por COVID-19 de la
+Unidad de Cuidados Intensivos (UCI) en Cali, Valle del Cauca. El tiempo
+de supervivencia corresponde, por consiguiente, al tiempo de permanencia
+en UCI de los pacientes por COVID-19. En términos generales, el análisis
+se divide en tres partes: en la primera se presenta, de conformidad con la metodología de Kaplan-Meier, una estimación no-paramétrica de la función de supervivencia;  la segunda parte contiene tres modelos paramétricos para la estimación de la curva de supervivencia, suponiendo que el tiempo de supervivencia sigue una distribución gamma generalizada, una distribución de Gompertz o una distribución log-logística; y, finalmente, la tercera parte presenta un modelo de tasas de riesgo, más precisamente, el modelo de riesgos proporcionales de Cox (1972). Puesto que la deducción de la función de supervivencia implica la deducción de la
+función de riesgo acumulado, un ejercicio análogo se emplea en cada caso sobre esta última.
+
+El análisis de supervivencia es conocido también como análisis de datos
+truncados o censurados. Por definición, se dice censurada de una
+observación que, aun cuando se detente información suya, el tiempo
+específico de supervivencia no está determinado. Existen, por lo menos,
+tres clases de censura: la censura por derecha es el caso si el tiempo
+real de supervivencia es igual o superior al observado; la censura por
+izquierda, si el tiempo real de supervivencia es igual o inferior al
+tiempo de supervivencia observado; y la censura en intervalo, que
+combina la censura por derecha y la censura por izquierda, es el caso si
+el tiempo real de supervivencia se halla contenido en un intervalo
+conocido (Klein & Moeschberger, 2003). Habida cuenta de la naturaleza
+del evento de interés, se considera únicamente la censura por derecha y
+en los siguientes casos: uno, si el paciente permanece en UCI hasta la
+fecha en que el estudio concluye; y dos, si el paciente muere en UCI en
+virtud de una causa distinta al COVID-19.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+library(survival) 
+library(KMsurv) 
+library(survMisc) 
+library(survminer) 
+library(ggfortify) 
+library(flexsurv) 
+library(actuar) 
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(xts)
+library(plyr)
+library(dplyr)
+library(writexl)
+library(knitr)
+library(moments)
+library(fitdistrplus)
+library(logspline)
+```
+
+# Preparación de los datos
+
+Los datos históricos sobre los casos de COVID-19 son extraídos de los
+registros diarios del Instituto Nacional de Salud (INS). El estudio
+considera el período 2020-04-20:2020-11-30 con frecuencia diaria y, en
+términos generales, la construcción de la base de datos opera según el
+siguiente código:
+
+```{r, eval =FALSE}
+s <- as.Date("2020-04-20")  
+e <- as.Date("2020-11-30")  
+fechas<-seq(from=s, to=e, by=1)
+fechas = fechas[-which(fechas == "2020-11-07")]
+destfile = vector()
+URL = vector()
+for (j in 1:length(fechas))
+{
+  URL[[j]] <- paste0("https://www.ins.gov.co/BoletinesCasosCOVID19Colombia/", fechas[j],".csv")
+  destfile [[j]] =paste0("F:\\Proyecto_S.25.05.22\\Datos_prep_csv\\", fechas[j],".csv")
+  download.file(URL[j],destfile[j])
+}
+
+funcion_w_n = function(a){
+  dataset_0 = data.frame()
+  colnames(a) <- c("Caso", "Not", "Cod_Mun",  "Nom_Dep", "Nom_Mun",
+                   "Edad", "Sexo", "Fuente", "Ubic", "Estado", "Pais_nom",
+                   "Inicio", "Muerte", "Diagnos", "Recup", "Cargue")
+  a$Caso <- as.numeric(a$Caso)
+  a$Sexo <- as.factor(a$Sexo)
+  a$Cod_Mun <- as.numeric(a$Cod_Mun)
+  a$Fuente <- as.factor(a$Fuente)
+  a$Ubic <- as.factor(a$Ubic)
+  a$Ubic <- as.character(a$Ubic)
+  a$Pais_nom <- as.character(a$Pais_nom)
+  a$Estado <- as.factor(a$Estado)
+  a$Fuente <- revalue(a$Fuente, c("EN ESTUDIO" = "En estudio",
+                                  "Relacionado" = "Relacionado"))
+  a$Estado <- revalue(a$Estado, c("Asintomático = Asintomático", "Fallecido" = "Fallecido", "Grave" = "Grave", "Leve" = "Leve", "Moderado" = "Moderado", "N/A" = NA))
+  a <- a[order(a$Caso),]
+  a <- a[a$Cod_Mun == 76001, ]
+  dataset_0 = a
+  return(dataset_0)
+}
+large_dataset <- (read.csv(destfile[length(destfile)]))
+large_dataset <- funcion_w_n(large_dataset)
+funcion_x = function(a){
+  dataset_0 = data.frame()
+  colnames(a) <- c("Caso", "Not", "Cod_Mun",  "Nom_Dep", "Nom_Mun",
+                   "Edad", "Sexo", "Fuente", "Ubic", "Estado", "Pais_nom",
+                   "Inicio", "Muerte", "Diagnos", "Recup", "Cargue")
+  a$Caso <- as.numeric(a$Caso)
+  a$Sexo <- as.factor(a$Sexo)
+  a$Cod_Mun <- as.numeric(a$Cod_Mun)
+  a$Fuente <- as.factor(a$Fuente)
+  a$Ubic <- as.factor(a$Ubic)
+  a$Ubic <- as.character(a$Ubic)
+  a$Pais_nom <- as.character(a$Pais_nom)
+  a$Estado <- as.factor(a$Estado)
+  a$Fuente <- revalue(a$Fuente, c("EN ESTUDIO" = "En estudio",
+                                  "Relacionado" = "Relacionado"))
+  a$Estado <- revalue(a$Estado, c("Asintomático = Asintomático", "Fallecido" = "Fallecido", "Grave" = "Grave", "Leve" = "Leve", "Moderado" = "Moderado", "N/A" = NA))
+  a <- a[order(a$Caso),]
+  n_f = length(a$Caso)
+  filter_vec = large_dataset$Caso[large_dataset$Caso <= a$Caso[n_f]]
+  a = a[a$Caso %in% filter_vec, ]
+  dataset_0 = a
+  return(dataset_0)
+}
+
+funcion_y = function(a){
+  dataset_x = data.frame()
+  a$Ubic <- as.character(a$Ubic)
+  
+  a$Ubic <- gsub(pattern = "\\s*(c|C)+(a|A|)+(s|S|)+(a|A)+\\s*", 
+                 replacement = "Casa", a$Ubic)
+  a$Ubic <- gsub(pattern = "\\s*(f|F)+(a|A|)+(l|L|)+(e|E|)+(c|C|)+(i|I|)+(d|D|)+(o|O)+\\s*", 
+                 replacement = "Fallecido", a$Ubic)
+  a$Ubic <- gsub(pattern = "\\s*(h|H)+(o|O|)+(s|S|)+(p|P|)+(i|I|)+(t|T|)+(a|A|)+(l|L)+\\s*", 
+                 replacement = "Hospital", a$Ubic)
+  a$Ubic <- gsub(pattern = "\\s*(h|H)+(o|O|)+(s|S|)+(p|P|)+(i|I|)+(t|T|)+(a|A|)+(l|L|).(u|U)+(c|C|)+(i|I|)+\\s*", 
+                 replacement = "Hospital_UCI", a$Ubic)
+  a$Ubic <- gsub(pattern = "\\s*(r|R)+(e|E|)+(c|C|)+(u|U|)+(p|P|)+(e|E|)+(r|R|)+(a|A|)+(d|D|)+(o|O)+\\s*", 
+                 replacement = "Recuperado", a$Ubic)
+  a["Ubic"][is.na(a["Ubic"])] <- "NO_COVID"
+  dataset_x = a
+  return(dataset_x)
+}
+first_dataset <- funcion_x(read.csv(destfile[1]))
+first_dataset <- funcion_y(first_dataset)
+
+Caso <- large_dataset$Caso
+Casa <- rep(NA, length(large_dataset$Caso))
+Casa <- as.Date(as.POSIXct(Casa, "UTC"))
+Hospital <- rep(NA, length(large_dataset$Caso))
+Hospital <- as.Date(as.POSIXct(Hospital, "UTC"))
+Fallecido <- rep(NA, length(large_dataset$Caso))
+Fallecido <- as.Date(as.POSIXct(Fallecido, "UTC"))
+Hospital_UCI <- rep(NA, length(large_dataset$Caso))
+Hospital_UCI <- as.Date(as.POSIXct(Hospital_UCI, "UTC"))
+Recuperado <- rep(NA, length(large_dataset$Caso))
+Recuperado <- as.Date(as.POSIXct(Recuperado, "UTC"))
+NO_COVID <- rep(NA, length(large_dataset$Caso))
+NO_COVID <- as.Date(as.POSIXct(NO_COVID, "UTC"))
+dataframe_test <- data.frame(Caso, Casa, Hospital, Fallecido, Hospital_UCI, 
+                             Recuperado, NO_COVID)
+rm(Caso, Casa, Hospital, Fallecido, Hospital_UCI, 
+   Recuperado, NO_COVID)
+
+for(j in 1:length(first_dataset$Caso)){
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="Casa")
+  {dataframe_test[j, "Casa"] = fechas[1]}
+  
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="Fallecido")
+  {dataframe_test[j, "Fallecido"] = fechas[1]}
+  
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="Hospital")
+  {dataframe_test[j, "Hospital"] = fechas[1]}
+  
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="Hospital_UCI")
+  {dataframe_test[j, "Hospital_UCI"] = fechas[1]}
+  
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="Recuperado")
+  {dataframe_test[j, "Recuperado"] = fechas[1]}
+  
+  if(first_dataset[j, "Caso"]==large_dataset[j, "Caso"] & 
+     first_dataset[j, "Ubic"]=="NO_COVID")
+  {dataframe_test[j, "NO_COVID"] = fechas[1]}
+}  
+
+n <- length(fechas) - 1
+for (k in {1:n}) {
+  dataset_y0 <- data.frame()
+  dataset_y1 <- data.frame()
+  dataset_y0 <- funcion_x(read.csv(destfile[k]))
+  dataset_y1 <- funcion_x(read.csv(destfile[k+1]))
+  dataset_y0 <- funcion_y(dataset_y0)
+  dataset_y1 <- funcion_y(dataset_y1)
+  names_0 <- vector()
+  names_1 <- vector()
+  
+  names_0[1] <- "Caso"
+  names_0[2] <- paste0("Not_", fechas[k])
+  names_0[3] <- paste0("Cod_Mun_", fechas[k])
+  names_0[4] <- paste0("Nom_Dep_", fechas[k])
+  names_0[5] <- paste0("Nom_Mun_", fechas[k])
+  names_0[6] <- paste0("Edad_", fechas[k])
+  names_0[7] <- paste0("Sexo_", fechas[k])
+  names_0[8] <- paste0("Fuente_", fechas[k])
+  names_0[9] <- paste0("Ubic_", fechas[k])
+  names_0[10] <- paste0("Estado_", fechas[k])
+  names_0[11] <- paste0("Pais_nom_", fechas[k])
+  names_0[12] <- paste0("Inicio_", fechas[k])
+  names_0[13] <- paste0("Muerte_", fechas[k])
+  names_0[14] <- paste0("Diagnos_", fechas[k])
+  names_0[15] <- paste0("Recup_", fechas[k])
+  names_0[16] <- paste0("Cargue_", fechas[k])
+  
+  
+  names_1[1] <- "Caso"
+  names_1[2] <- paste0("Not_", fechas[k+1])
+  names_1[3] <- paste0("Cod_Mun_", fechas[k+1])
+  names_1[4] <- paste0("Nom_Dep_", fechas[k+1])
+  names_1[5] <- paste0("Nom_Mun_", fechas[k+1])
+  names_1[6] <- paste0("Edad_", fechas[k+1])
+  names_1[7] <- paste0("Sexo_", fechas[k+1])
+  names_1[8] <- paste0("Fuente_", fechas[k+1])
+  names_1[9] <- paste0("Ubic_", fechas[k+1])
+  names_1[10] <- paste0("Estado_", fechas[k+1])
+  names_1[11] <- paste0("Pais_nom_", fechas[k+1])
+  names_1[12] <- paste0("Inicio_", fechas[k+1])
+  names_1[13] <- paste0("Muerte_", fechas[k+1])
+  names_1[14] <- paste0("Diagnos_", fechas[k+1])
+  names_1[15] <- paste0("Recup_", fechas[k+1])
+  names_1[16] <- paste0("Cargue_", fechas[k+1])
+  
+  colnames(dataset_y0) <- names_0 
+  colnames(dataset_y1) <- names_1
+  dataset_y1 <- merge(dataset_y1, dataset_y0, by= "Caso", all.x = TRUE) 
+  rm(dataset_y0)
+  
+  dataset_y1$shft <- NA
+  x <- paste0("Ubic_",fechas[k])
+  y <- paste0("Ubic_",fechas[k+1])
+  dataset_y1[x][is.na(dataset_y1[x])] <- "N_A"
+  dataset_y1[y][is.na(dataset_y1[y])] <- "N_A"
+  dataset_y1$shft <- dataset_y1[[x]] != dataset_y1[[y]] 
+  rm(x,y)
+  names(dataset_y1)[names(dataset_y1)=="shft"] <- paste0("shft_",fechas[k],"&",fechas[k+1])
+  
+  for(p in 1:length(dataset_y1$Caso)){
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE 
+       & dataset_y1[p, z]=="Casa" & is.na(dataframe_test[p, "Casa"]))
+    {dataframe_test[p, "Casa"] = fechas[k+1]}
+    rm(w, z)
+    
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE & 
+       dataset_y1[p, z]=="Fallecido" & is.na(dataframe_test[p, "Fallecido"]))
+    {dataframe_test[p, "Fallecido"] = fechas[k+1]}
+    rm(w, z)
+    
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE & 
+       dataset_y1[p, z]=="Hospital" & is.na(dataframe_test[p, "Hospital"]))
+    {dataframe_test[p, "Hospital"] = fechas[k+1]}
+    rm(w, z)
+    
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE & 
+       dataset_y1[p, z]=="Hospital_UCI" & is.na(dataframe_test[p, "Hospital_UCI"]))
+    {dataframe_test[p, "Hospital_UCI"] = fechas[k+1]}
+    rm(w, z)
+    
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE & 
+       dataset_y1[p, z]=="Recuperado" & is.na(dataframe_test[p, "Recuperado"]))
+    {dataframe_test[p, "Recuperado"] = fechas[k+1]}
+    rm(w, z)
+    
+    w <- paste0("shft_",fechas[k],"&",fechas[k+1])
+    z <- paste0("Ubic_",fechas[k+1])
+    if(dataset_y1[p, w]==TRUE & 
+       dataset_y1[p, z]=="NO_COVID" & is.na(dataframe_test[p, "NO_COVID"]))
+    {dataframe_test[p, "NO_COVID"] = fechas[k+1]}
+    rm(w, z)
+  }
+  rm(dataset_y1)
+  print(fechas[k+1])
+}
+```
+
+```{r, eval =FALSE, echo=FALSE}
+dataframe_test_general <- dataframe_test
+
+write.csv(dataframe_test_general, 
+          "/Volumes/SERGIOB/Proyecto_S.25.05.22/última_prueba.csv",
+          row.names = FALSE)
+
+dataframe_test_covariables = dataframe_test_general
+dataframe_test_covariables$Sexo = large_dataset$Sexo
+dataframe_test_covariables$Edad = large_dataset$Edad
+
+write.csv(dataframe_test_covariables, 
+          "/Volumes/SERGIOB/Proyecto_S.25.05.22/última_prueba_covariables.csv",
+          row.names = FALSE)
+```
+
+La base de datos detenta la siguiente estructura: la primera columna,
+$Caso$, corresponde al número de caso indexado según los registros
+históricos del INS; la segunda, $t$, al tiempo de supervivencia; y la
+tercera, $d$, es una variable dicotómica que representa los datos
+censurados. Adicionalmente, con el propósito de evaluar las diferencias
+entre las funciones de supervivencia estimadas según sexos y grupos
+etarios, se introducen la variables $Sexo$ y $Edad$. Con todo, se deduce
+la siguiente estructura de datos:
+
+```{r, echo=FALSE}
+s <- as.Date("2020-04-20")  
+e <- as.Date("2020-11-30")  
+fechas<-seq(from=s, to=e, by=1)
+fechas = fechas[-which(fechas == "2020-11-07")]
+
+dataframe_test_general = read.csv("F:\\Proyecto_S.25.05.22\\ultima_prueba.csv")
+
+dataframe_test_covariables = read.csv("F:\\Proyecto_S.25.05.22\\ultima_prueba_covariables.csv") 
+
+
+
+
+```
+
+
+```{r, echo=FALSE}
+dataframe_test_general$NO_COVID = NA
+```
+
+```{r}
+dataframe_test_UCI = dataframe_test_general[is.na(dataframe_test_general$Hospital_UCI)== FALSE, ]
+
+Caso <- dataframe_test_UCI$Caso
+t <- as.numeric(rep(NA, length(dataframe_test_UCI$Caso)))
+d <-as.numeric(rep(NA, length(dataframe_test_UCI$Caso)))
+new_df = data.frame(Caso, t,d)
+rm(Caso, d, t)
+
+
+dataframe_t <- dataframe_test_UCI
+dataframe_t$Final <- as.Date(rep(as.Date(e), nrow(dataframe_test_UCI)))
+
+for (k in 1:nrow(dataframe_t)) {
+  subset_df <- data.frame()
+  subset_df <- data.frame(t(apply(dataframe_t[k,-1], 1, sort)))
+  p <- which(colnames(subset_df) == "Hospital_UCI")
+  new_df[k, "t"] <- as.numeric(as.Date(subset_df[1, p+1]) - 
+                                 as.Date(subset_df[1,"Hospital_UCI"]))
+  rm(p)
+  rm(subset_df)
+}
+rm(dataframe_t)
+
+
+for (k in 1:nrow(dataframe_test_UCI)) {
+  subset_d <- data.frame()
+  subset_d <- dataframe_test_UCI[k,-1]
+  max_value = pmax(subset_d$Casa, subset_d$Hospital, subset_d$Fallecido, 
+                   subset_d$Hospital_UCI, subset_d$Recuperado, 
+                   subset_d$NO_COVID, na.rm = TRUE)
+  if (as.Date(dataframe_test_UCI[k, "Hospital_UCI"]) == as.Date(max_value)) {
+    new_df[k,"d"] = 0
+  } else {new_df[k,"d"] = 1}
+  rm(subset_d)
+  rm(max_value)
+}
+```
+
+```{r, echo=FALSE}
+dataframe_test_UCI_covariable = dataframe_test_covariables[is.na(dataframe_test_covariables$Hospital_UCI)== FALSE, ]
+new_df_covariables = new_df
+new_df_covariables$Sexo = dataframe_test_UCI_covariable$Sexo
+new_df_covariables$Edad = dataframe_test_UCI_covariable$Edad
+
+new_df = new_df[new_df$t != 0, ]
+new_df_covariables = new_df_covariables[new_df_covariables$t != 0,]
+
+```
+
+```{r echo = FALSE, results="asis"}
+kable(new_df_covariables[1:20,], caption = "Estructura de datos")
+```
+
+# Estimación no-paramétrica
+
+## Función de supervivencia
+
+Sea $T \in [0, \ +\infty) \subseteq \mathbb{R}^{+}$ una variable
+aleatoria no-negativa que expresa el tiempo de supervivencia, *i.e.*, el
+tiempo de permanencia en UCI para pacientes de COVID-19. Y defínase
+$d \in \{0, \ 1\}$ como una variable dicotómica tal que, si la
+observación es un dato censurado, $d = 0$; de lo contrario, $d = 1$. Por
+definición, la función de supervivencia
+$S:[0, \ +\infty) \subseteq \mathbb{R}^{+} \rightarrow [0, \ 1] \subset \mathbb{R}^{+}$
+corresponde a la probabilidad de que el tiempo de supervivencia $T$ se
+exceda un tiempo específico $t\in [0, \ +\infty)$. Formalmente,
+
+$$
+S(t) = P(T > t)
+$$
+
+Teóricamente, cualquiera que sea $t\in [0, \ +\infty)$, la función de
+supervivencia satisface que $\partial S(t)/\partial t ≤ 0$, $S(0) = 1$ y
+$S(\infty) = 0$. Esto es equivalente a afirmar, primero, que $S(t)$ es
+una función no-creciente; segundo, que la probabilidad de que el evento
+ocurra después de $t = 0$ es 1; y que, finalmente, si el tiempo
+específico es infinito, la probabilidad de que no ocurra el evento es
+nula (Kleinbaum & Klein, 2012).
+
+### Estimación no-paramétrica sin covariables
+
+La metodología de Kaplan-Meier o metodología de producto límite propone una estimación no-paramétrica de la función de supervivencia a partir del
+producto de probabilidades condicionales estimadas (Kleinbaum & Klein,
+2012). Se verifica que, dado el tiempo de supervivencia
+$t_{f} \in [0, \ +\infty) \subseteq \mathbb{R}^{+}$, la función de
+supervivencia estimada sigue la forma
+
+$$
+\hat{S}(t_{f}) = \hat{S}(t_{f-1}) \ \times \ \hat{P}(T > t_{f} \ | \ T ≥ t_{f} )
+$$ donde $$
+\hat{S}(t_{f-1}) = \prod_{i=1}^{f-1}\hat{P}(T > t_{i} \ | \ T ≥ t_{i} )
+$$ 
+
+tal que
+
+$$
+\hat{S}(t_{f}) = \prod_{i=1}^{f}\hat{P}(T > t_{i} \ | \ T ≥ t_{i} )
+$$ 
+
+Supóngase que $n.risk$ es la cardinalidad del conjunto de riesgo en
+el tiempo de supervivencia $t_{f}$, es decir, el número de personas que
+han sobrevivido al menos hasta $t_{ƒ}$; y supóngase que $n.event$
+expresa el número de personas que, hasta el tiempo $t_{ƒ}$, presentaron
+el evento de interés. Así, el estimador de Kaplan-Meier se construye
+según la siguiente información (Rickert, 2017):
+
+```{r, echo=FALSE}
+df <- new_df[,-1]
+```
+
+```{r}
+df_km <- survfit(Surv(df$t, df$d) ~ 1, data = df, type = "kaplan-meier", error = "tsiatis", conf.type = "log-log", conf.int = 0.95)
+```
+
+```{r, echo=FALSE}
+resultados_1 = with(df_km, data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_1) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", 
+                   "upper 95% CI")
+
+kable(resultados_1, caption = "Estimación no-paramétrica de la función de supervivencia")
+```
+
+La curva de supervivencia estimada sin covariables se expresa en la
+siguiente función escalonada:
+
+```{r, warning=FALSE}
+ggsurvplot(fit = df_km, data = df, conf.int = T, title = "Curva de Supervivencia", xlab = "Tiempo", ylab = "Probabilidad de supervivencia", legend.labs = "Estimación de Kaplan-Meier", legend.title = " ")
+```
+
+### Estimación no-paramétrica con covariables
+
+#### Curvas de supervivencia estimadas diferenciadas según el sexo
+
+Mediante la incorporación de $Sexo$ como covariable, se deduce que la
+función de supervivencia estimada para los pacientes de sexo femenino,
+de conformidad con la metodología de Kaplan-Meier, se construye a partir
+de la siguiente información:
+
+```{r, echo=FALSE}
+df_cov <- new_df_covariables[,-1]
+```
+
+```{r}
+df_km_sexo <- survfit(Surv(df_cov$t, df_cov$d) ~ Sexo, data = df_cov, type = "kaplan-meier", error = "tsiatis", conf.type = "log-log", conf.int = 0.99)
+```
+
+```{r, echo=FALSE}
+resultados_2 = with(df_km_sexo[1], data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_2) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(resultados_2, caption = "Estimación no-paramétrica de la curva de supervivencia para pacientes de sexo feminino")
+```
+
+De manera análoga, la función de supervivencia estimada para los
+pacientes de sexo masculino viene dada por
+
+```{r, echo=FALSE}
+resultados_3 = with(df_km_sexo[2], data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_3) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(resultados_3, caption = "Estimación no-paramétrica de la curva de supervivencia para pacientes de sexo masculino")
+```
+
+Gráficamente, las curvas de supervivencia estimada diferenciadas según
+el sexo se expresan mediante las siguientes funciones escalonadas:
+
+```{r}
+ggsurvplot(fit = df_km_sexo, data = df_cov, conf.int = T, title = "Curva de Supervivencia", xlab = "Tiempo", ylab = "Probabilidad de supervivencia", legend.title = "Sexo", legend.labs = c("F", "M"))
+```
+
+Nótese que, en términos generales, la observación sugiere que el
+pronóstico de supervivencia no varía según el sexo. Una prueba de
+hipótesis para la igualdad de ambas funciones de supervivencia es útil
+para verificar esta intuición inicial. Cualquiera que sea
+$t \in [0, + \infty) \subseteq \mathbb{R}^{+}$, defínase $S_{F}(t)$ y
+$S_{M}(t)$ como las funciones de supervivencia para pacientes de sexo
+femenino y masculino, respectivamente. Dado un tiempo específico
+$\tau \in [0, + \infty)$, considérese la siguiente prueba de hipótesis:
+
+$$
+H_{0}: \forall_{t ≤ \tau}: S_{F}(t) = S_{M}(t)
+$$ 
+
+$$
+H_{1}: \exists_{t^{\prime}\in [0, + \infty) \subseteq \mathbb{R}^{+}}: S_{F}(t^{\prime}) \neq S_{M}(t^{\prime})
+$$ 
+La prueba opera mediante la metodología no-paramétrica de Mantel-Cox
+-o metodología log-rank- (Martínez, 2017). El resultado es el siguiente:
+
+```{r}
+survdiff(Surv(df_cov$t, df_cov$d) ~ Sexo, data = df_cov, rho = 0)
+```
+
+No existe evidencia suficiente para rechazar la hipótesis nula y, en
+consecuencia, se deduce que las curvas de supervivencia estimadas son
+estadísticamente idénticas.
+
+#### Curvas de supervivencia estimadas diferenciadas según grupos etarios
+
+Considérese ahora la estimación de las funciones de supervivencia
+diferenciadas según grupos de edad. Defínase tres grupos etarios distintos: primero, los pacientes de entre 0 y 30
+años; segundo, entre 30 y 60 años; y tercero, los pacientes de 60 años
+en adelante. Dado el primer grupo etario, la estimación no-paramétrica
+de Kaplan-Meier se fundamenta en la siguiente información:
+
+```{r, echo=FALSE}
+new_df_cov <- new_df_covariables[,-1]
+```
+
+```{r}
+new_df_cov$Grupo_edad <- cut(new_df_cov$Edad, breaks = c(0, 30, 60, 90))
+df_km_edad <- survfit(Surv(new_df_cov$t, new_df_cov$d) ~ Grupo_edad, data = new_df_cov, type = "kaplan-meier", error = "tsiatis", conf.type = "log-log", conf.int = 0.95)
+```
+
+```{r, echo=FALSE}
+resultados_4 = with(df_km_edad[1], data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_4) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(resultados_4, caption = "Estimación no-paramétrica de la curva de supervivencia para pacientes de entre 0 y 30 años")
+```
+
+De manera similar, para los pacientes de entre 30 y 60 años, se deduce
+que
+
+```{r, echo=FALSE}
+resultados_5 = with(df_km_edad[2], data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_5) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(resultados_5, caption = "Estimación no-paramétrica de la curva de supervivencia para pacientes de entre 30 y 60 años")
+```
+
+Y, finalmente, el grupo conformado por pacientes mayores de 60 años
+presenta la siguiente información:
+
+```{r, echo=FALSE}
+resultados_6 = with(df_km_edad[3], data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(resultados_6) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(resultados_6, caption = "Estimación no-paramétrica de la curva de supervivencia para pacientes de 60 años o más")
+```
+
+La estimación no-paramétrica de las curvas de supervivencia,
+diferenciadas según los grupos etarios definidos, se expresa mediante
+las siguientes funciones escalonadas:
+
+```{r, eval =TRUE}
+ggsurvplot(fit = df_km_edad, data = new_df_cov, conf.int = T, title = "Curva de Supervivencia", xlab = "Tiempo", ylab = "Probabilidad de supervivencia", legend.title = "Estimación", xlim = c(0, 180), legend.labs = c("(0, 30]", "(30, 60]", "60+"))
+```
+
+En contraste con los resultados derivados de la covariable $Sexo$, la
+observación sugiere que el pronóstico de supervivencia varía según el
+grupo etario. Todavía más, las curvas de supervivencia estimadas indican
+que el pronóstico de supervivencia es peor en la medida en que la edad
+aumenta. Una conclusión más débil se verifica, formalmente, mediante una
+prueba de hipótesis para la igualdad de las funciones de supervivencia.
+Cualquiera que sea $i \in \{1,2,3\}$, y para todo $t \in [0, + \infty)$,
+$S_{i}(t)$ se define como la función de supervivencia para el $i$-ésimo
+grupo etário. Considérese un tiempo específico $\tau \in [0, + \infty)$.
+La prueba de hipótesis sigue la forma
+
+$$
+H_{0}: \forall_{t ≤ \tau}: S_{1}(t) = S_{2}(t) = S_{3}(t)
+$$ 
+
+$$
+H_{1}:  \exists_{i,j \in \{1,2,3\}}:\exists_{t^{\prime}\in [0, + \infty)}: S_{i}(t^{\prime}) \neq S_{j}(t^{\prime})
+$$ 
+
+Nuevamente, la prueba de hipótesis opera según la metodología
+no-paramétrica de Mantel-Cox. El resultado es el siguiente:
+
+```{r}
+survdiff(Surv(new_df_cov$t, new_df_cov$d) ~ Grupo_edad, data = new_df_cov, rho = 0)
+```
+
+Dado un nivel de significancia del $5\%$, existe
+evidencia suficiente para rechazar la hipótesis nula, lo cual implica
+que hay, por lo menos, un par de curvas de supervivencia que difieren
+entre sí.
+
+## Función de riesgo acumulada
+
+Formalmente,
+$h: [0, \ +\infty) \subseteq \mathbb{R^{+}} \rightarrow \mathbb{R}^{+}$
+se define como la función de riesgo. En general, la función de riesgo
+$h(t)$ expresa la tasa instantánea de que, dado un tiempo específico
+$t \in \mathbb{R^{+}}$, el evento de interés
+ocurra, suponiendo que el tiempo de supervivencia $T \in [0, \ +\infty)$
+es mayor o igual a $t$ (Kleinbaum & Klein, 2012). Para un intervalo
+pequeño de tiempo $\Delta t\in \mathbb{R^{+}}$, la función de riesgo se define formalmente
+como
+
+$$
+h(t) = \lim_{\Delta t \rightarrow 0} \frac{P(t ≤ T < t+\Delta t \ | \ T ≥ t)}{\Delta t}
+$$ 
+Nótese que, teóricamente, la función de riesgo satisface las
+siguientes condiciones: uno, la función de riesgo es no-negativa tal
+que, para todo $t \in \mathbb{R}^{+}$, $h(t) ≥ 0$; y dos, la función de
+riesgo no está superiormente acotada. Desde el punto de vista paramétrico, de acuerdo con Lee & Wang (2003,
+p. 13), cualquiera que sea $t \in (0, \ +\infty) \subset \mathbb{R}^{++}$, la función de riesgo
+acumulado $H(t)$ se define como la antiderivada de $h(t)$ y, en general, se mantiene la siguiente identidad:
+$$
+H(t) = \int_{0}^{t}h(u).du = -Ln(S(t))
+$$
+
+No obstante, desde el punto de vista no-paramétrico, la estimación de la función de riesgo acumulado se puede expresar mediante el estimador de Nelson-Aalen, el cual se define como
+
+$$
+\hat{H}(t) = \sum_{t_{f} ≤ t}\frac{m_{f}}{n_{f}}
+$$
+
+donde $m_{f}$ es el número de personas que, hasta el tiempo $t_{f}$, presentaron el evento de interés ($n.event$); y $n_{f}$, la cardinalidad del conjunto de riesgo en $t_{f}$ ($n.risk$).
+
+### Estimación no-paramétrica sin covariables
+
+La estimación de la función de riesgo acumulado $H(t)$ opera, en términos generales, según el estimador de Nelson-Aalen. Prescindiendo del conjunto de covariables de interés, se deduce la siguiente función de riesgo
+acumulado estimada:
+
+```{r}
+hazard_f <- df_km %>% fortify %>% mutate(CumHaz = cumsum(n.event/n.risk))
+
+plot(df_km, fun = "cumhaz", conf.int = F, main = "Riesgo Acumulado", col = 1:2, xlab = "Tiempo (Días)", ylab = "Riesgo Acumulado", xlim = c(0,200))
+```
+
+### Estimación no-paramétrica con covariables
+
+#### Funciones de riesgo acumulado estimadas diferenciadas según el sexo
+
+Considérese $Sexo$ como una covariable de interés. Por medio del estimador de Nelson-Aalen, se verifica que la estimación de las funciones
+de riesgo acumulado diferenciadas según el sexo del paciente vienen dadas por
+
+```{r}
+hazard_f <- df_km_sexo %>% fortify %>% mutate(CumHaz = cumsum(n.event/n.risk))
+
+ggsurvplot(df_km_sexo, fun = "cumhaz", xlab = "Tiempo (Días)", censor = T, ylab = "Riesgo Acumulado", title = "Riesgo Acumulado", legend.title = "Sexo", legend.labs = c("F", "M"), xlim = c(0, 180))
+```
+
+Las conclusiones derivadas de la prueba de hipótesis presentada más
+arriba aplican, *mutatis mutandis*, en este caso.
+
+#### Funciones de riesgo acumulado estimadas diferenciadas según grupos etarios
+
+Considérese los grupos etarios definidos en la sección \textbf{(11)}: de
+0 a 30 años; de 30 a 60 años; y más de 60 años. Diferenciadas según el
+grupo etario, las funciones de riesgo acumulado estimadas se expresan
+mediante las siguientes funciones escalonadas:
+
+```{r}
+hazard_f <- df_km_edad %>% fortify %>% mutate(CumHaz = cumsum(n.event/n.risk))
+
+ggsurvplot(df_km_edad, fun = "cumhaz", xlab = "Tiempo (Días)", censor = T, ylab = "Riesgo Acumulado", title = "Riesgo Acumulado", legend.title = "Grupos etários", legend.labs = c("(0, 30]", "(30, 60]", "60+"))
+```
+
+De manera idéntica, los resultados derivados de la prueba de hipótesis
+presentada más arriba valdrían, *mutatis mutandis*, para las funciones
+de riesgo acumulado.
+
+
+# Estimación paramétrica
+
+## Función de supervivencia
+Sea el tiempo de supervivencia $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ una variable aleatoria continua positiva. Dada la función de distribución acumulada $F_{T}(t)$, la función de supervivencia $S:(0, \ +\infty) \subseteq \mathbb{R}^{++} \rightarrow [0, \ 1] \subseteq \mathbb{R}^{+}$ se puede expresar como
+
+$$
+S(t) =  1 - P(T ≤ t) = 1 - F_{T}(t) 
+$$
+Por definición, dada la función de densidad $f_{T}(t)$, la expresión anterior es equivalente a
+
+$$
+S(t) = 1 - \int_{0}^{t}f_{T}(t).dt
+$$
+o, lo que es lo mismo,
+
+$$
+S(t) = \int_{t}^{\infty}f_{T}(t).dt
+$$
+
+Las propiedades otrora señaladas se mantienen.
+
+## Función de riesgo y función de riesgo acumulado
+
+Supóngase que $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ es una variable aleatoria continua. La función de riesgo $h:(0, \ +\infty) \subseteq \mathbb{R}^{++} \rightarrow \mathbb{R}^{+}$ fue definida como la siguiente función no-negativa:
+
+$$
+h(t) = \lim_{\Delta t \rightarrow 0} \frac{P(t ≤ T < t+\Delta t \ | \ T ≥ t)}{\Delta t}
+$$ 
+
+Puesto que $f_{T}(t) = \lim_{\Delta t \rightarrow 0} \frac{P(t ≤ T < t+\Delta t )}{\Delta t}$, y puesto que $S(t) = P(T > t)$, se verifica que
+
+$$
+h(t) = \frac{f_{T}(t)}{S(t)},
+$$ 
+
+de donde se desprende que 
+
+$$
+h(t) = -\frac{\partial Ln(S(t))}{\partial t}
+$$
+
+Nótese que, cualquiera que sea $t \in (0, \ +\infty)$, la función de riesgo acumulado $H(t)$ corresponde a la antiderivada de la función de riesgo tal que 
+
+$$
+H(t) = \int_{0}^{t}h(u).du
+$$
+
+Las siguientes identidades son evidentes:
+
+$$
+H(t) = -Ln(S(t))
+$$
+
+y
+
+$$
+S(t) = \exp\left\{-H(t)\right\} = \exp\left\{-\int_{0}^{t}h(u).du   \right\}
+$$
+
+## Media y mediana del tiempo de supervivencia
+Sea $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ una variable aleatoria continua cuya función de densidad viene dada por $f_{T}(t)$. En consecuencia, la media del tiempo de supervivencia se define como
+
+$$
+E[T] = \int_{0}^{\infty}tf(t).dt
+$$
+Y, puesto que $S(\infty)=0$, la expresión anterior es equivalente a
+
+$$
+E(T) = \int_{0}^{\infty}S(t).dt
+$$
+Como señalan Klein & Moeschberger (2003, p. 33), el $k$-ésimo cuantil corresponde al elemento $t_{k} \in \mathbb{R}^{++}$ más pequeño que satisface que
+
+$$
+t_{k} = inf\{\ t \  | \ S(t) ≤ 1 - k\}
+$$
+Es decir, el $k$-ésimo cuantil es el elemento ínfimo que cumple que $S(t) ≤ 1 - k$. De ahí se sigue que, si $k = 0.5$,
+
+$$
+S(t_{0.5}) = 0.5
+$$
+donde $t_{0.5}$ es la mediana del tiempo de supervivencia.
+
+## Análisis preliminar sobre la distribución
+
+Dado el tiempo de supervivencia $T \in (0,\ +\infty] \subseteq \mathbb{R}^{++}$, la siguiente gráfica representa su densidad empírica:
+
+
+```{r, warning=FALSE}
+ggplot(df, aes(x=t)) + geom_histogram(aes(y=..density..),
+                                          colour = "black",
+                                          fill = "white") + geom_density(alpha=0.4, fill = "#FF6666")
+```
+
+La medida de asimetría (skewness) y la curtosis de la distribución se resumen en la siguiente tabla:
+
+```{r}
+sk <- data.frame(skewness(new_df$t), kurtosis(new_df$t))
+colnames(sk) <- c("Skewness", "Kurtosis")
+kable(sk)
+```
+
+Considérese la siguiente gráfica que, en términos generales, presenta una comparación de la medida de asimetría y la curtosis de la distribución anterior con las características de ciertas distribuciones de probabilidad.
+
+```{r, echo=FALSE}
+descdist(new_df$t, discrete = FALSE)
+```
+
+Nótese que el resultado anterior sugiere, por lo menos, tres distribuciones de probabilidad continuas adecuadas: la distribución gamma, la distribución de Weibull y la distribución log-normal. Como señalan Lee & Wang (2003), las tres distribuciones anteriores no son sino casos especiales de la distribución gamma generalizada (*cf.* Lee & Wang, 2003, p. 152). Esto siginifica, en general, que el resultado anterior presenta la distribución gamma generalizada como un modelo paramétrico adecuado. Supóngase, pues, que la variable aleatoria continua $T \in (0, +\infty)$ sigue una distribución gamma generalizada cuya función de densidad, dados los paramétros $\lambda, \gamma, \alpha>0$, viene dada por
+
+$$
+f_{T}(t) = \frac{\alpha\lambda^{\alpha\gamma}}{\Gamma(\gamma)}t^{\alpha\gamma - 1}e^{-(\lambda t)^{\alpha}}
+$$
+Puesto que $\gamma > 0$, la función gamma $\Gamma(\gamma)$ se define como 
+
+$$
+\Gamma(\gamma) = \int_{0}^{\infty}x^{\gamma - 1}e^{-x}.dx
+$$
+
+Nótese que, si $\gamma=1$, $T \in \mathbb{R}^{++}$ sigue una distribución Weibull con parámetros $\alpha, \lambda >0$ tal que
+
+$$
+f_{T}(t) = \alpha\lambda^{\alpha}t^{\alpha - 1}e^{-(\lambda t)^{\alpha}}
+$$
+De manera análoga, si $\alpha = 1$, $T \in \mathbb{R}^{++}$ sigue una distribución gamma con parámetros $\gamma, \lambda >0$ tal que
+
+$$
+f_{T}(t) = \frac{\lambda^{\gamma}}{\Gamma(\gamma)}t^{\gamma - 1}e^{-\lambda t}
+$$
+
+Finalmente, se verifica que, si $\gamma \rightarrow \infty$, la distribución log-normal es un caso especial de la distribución gamma generalizada. Considerando los tres casos especiales de la distribución gamma generalizada, la siguiente gráfica presenta dos comparaciones: una entre la densidad empírica y la función de densidad teórica; y otra entre la distribución acumulada empírica y teórica.
+
+```{r}
+par(mfrow = c(2,2))
+plot_legend <- c("Gamma", "Weibull", "Log-Normal")
+
+denscomp(list(fitdist(df$t, "gamma"), fitdist(df$t, "weibull"), fitdist(df$t, "lnorm")), legendtext = c("Gamma", "Weibull", "Log-Normal"))
+
+qqcomp(list(fitdist(df$t, "gamma"), fitdist(df$t, "weibull"), fitdist(df$t, "lnorm")), legendtext = c("Gamma", "Weibull", "Log-Normal"))
+
+cdfcomp(list(fitdist(df$t, "gamma"), fitdist(df$t, "weibull"), fitdist(df$t, "lnorm")), legendtext = c("Gamma", "Weibull", "Log-Normal"))
+
+ppcomp(list(fitdist(df$t, "gamma"), fitdist(df$t, "weibull"), fitdist(df$t, "lnorm")), legendtext = c("Gamma", "Weibull", "Log-Normal"))
+
+```
+Un ejercicio análogo se propone para la distribución de Gompertz y la distribución log-logística, ambas ampliamente empleadas en el análisis de supervivencia. 
+
+```{r}
+par(mfrow = c(2,2))
+
+denscomp(list(fit_loglogis <- fitdist(df$t, "llogis"), fitdist(df$t, distr = "gompertz", start = list(shape =1, rate = 1), lower = c(0,0))),
+         legendtext = c("Log-logística", "Gompertz"))
+
+qqcomp(list(fit_loglogis <- fitdist(df$t, "llogis"), fitdist(df$t, distr = "gompertz", start = list(shape =1, rate = 1), lower = c(0,0))),
+         legendtext = c("Log-logística", "Gompertz"))
+
+cdfcomp(list(fit_loglogis <- fitdist(df$t, "llogis"), fitdist(df$t, distr = "gompertz", start = list(shape =1, rate = 1), lower = c(0,0))),
+         legendtext = c("Log-logística", "Gompertz"))
+
+ppcomp(list(fit_loglogis <- fitdist(df$t, "llogis"), fitdist(df$t, distr = "gompertz", start = list(shape =1, rate = 1), lower = c(0,0))),
+         legendtext = c("Log-logística", "Gompertz"))
+```
+
+Con todo, el análisis paramétrico posterior se circunscribe a tres distribuciones de probabilidad continuas: uno, la distribución gamma generalizada -que implica las distribuciones de Weibull, gamma y log-normal-; dos, la distribución log-logística; y tres, la distribución de gompertz.
+
+
+## Estimación paramétrica sin covariables
+
+
+### Distribución gamma generalizada
+
+Supóngase que el tiempo de supervivencia $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ es una variable aleatoria continua positiva que sigue una distribución gamma generalizada con parámetros $\lambda, \gamma, \alpha>0$ tal que $T \sim GG(\lambda, \ \gamma, \ \alpha)$. Así, la función de densidad $f_{T}(t)$ se expresa como 
+
+$$
+f_{T}(t) = \frac{\alpha\lambda^{\alpha\gamma}}{\Gamma(\gamma)}t^{\alpha\gamma - 1}e^{-(\lambda t)^{\alpha}}
+$$
+Por definición, la función de distribución acumulada $F_{T}(t)$ sigue la forma
+
+$$
+F_{T}(t) = \int_{0}^{t}f_{T}(t).dt = \frac{\gamma((\lambda t)^{\alpha}, \gamma)}{\Gamma(\gamma)}; \ \ \ \ \ \ \alpha,\lambda, \gamma >0
+$$
+Puesto que $\gamma$ es un parámetro real con $\gamma >0$, $\gamma((\lambda t)^{\alpha}, \gamma)$ se define como la función gamma incompleta de la forma
+
+$$
+\gamma((\lambda t)^{\alpha}, \gamma) = \int_{0}^{(\lambda t)^{\alpha}}x^{\gamma -1}e^{-x}.dx
+$$
+Por definición, cualquiera que sea $t \in (0,\ +\infty)\subseteq \mathbb{R}^{++}$, la función de supervivencia se expresa como
+
+$$
+S(t) = 1 - \frac{\gamma((\lambda t)^{\alpha}, \gamma)}{\Gamma(\gamma)}; \ \ \ \ \ \ \alpha,\lambda, \gamma >0
+$$
+
+
+Los resultados de la estimación paramétrica para la curva de supervivencia, comparados con la estimación de Kaplan-Meier, son los siguientes:
+
+```{r, warning = FALSE}
+flexg_gamma <- flexsurvreg(Surv(t, d) ~ 1, data = df, dist = "GenGamma.orig") %>% summary(type = "survival") %>% data.frame
+non_par <- survfit(Surv(t, d) ~ 1, data = df) %>% fortify
+ggplot() + geom_line(aes(time, est, col = "Paramétrico (Gamma generalizada)"),
+                  data = flexg_gamma) + geom_step(aes(time,
+                  surv, col = "No Paramétrico"), data =non_par) + labs(x = "Tiempo (Días)",
+                  y = "Probabilidad de Supervivencia", col = "Ajustes", 
+                  title = "Comparación entre curvas de supervivencia")
+```
+
+
+Se verificó que, para todo $t \in \mathbb{R}^{++}$, $H(t) = -Ln(S(t))$. Así, la siguiente gráfica presenta la función de riesgo acumulado estimada según el modelo paramétrico:
+
+
+```{r}
+
+
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Gamma generalizada)"), data = flexg_gamma) + geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = non_par) +
+  labs(x = "Tiempo (Días)", 
+       y = "Riesgo Acumulado", col = "Ajustes", title = 
+         "Comparación entre las funciones de riesgo acumulado")
+
+
+```
+
+
+Nótese que, por definición, la media del tiempo de supervivencia se define como
+
+$$
+E[T] = \int_{0}^{\infty}tf_{T}(t).dt = \frac{\Gamma \left(\frac{\alpha\gamma + 1}{\alpha}\right)}{\lambda \Gamma(\gamma)}
+$$
+La mediana del tiempo de supevivencia, $t_{0.5}$, satisface que $S(t_{0.5}) = 0.5$. Así,
+
+```{r}
+media <- c(as.numeric(sub(".*:", "", summary(flexg_gamma)[4])))
+mediana <- c(as.numeric(sub(".*:", "", summary(flexg_gamma)[3])))
+first <- c("T")
+med_med <- data.frame(first, media, mediana)
+colnames(med_med) <- c(" ", "Media", "Mediana" )
+kable(med_med)
+```
+
+
+
+
+
+### Distribución log-logística
+
+Supóngase que el tiempo de supervivencia $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ sigue una distribución log-logística con parámetros $\lambda, \beta>0$ tal que $T \sim LL(\lambda, \ \beta)$. Formalmente, para todo $t \in \mathbb{R}^{++}$, la función de densidad $f_{T}(t)$ se define como
+
+$$
+f_{T}(t) = \frac{\beta\lambda t^{\beta - 1}}{(1 + \lambda t^{\beta})^2};
+$$
+y la función de distribución acumulada $F_{T}(t)$, como
+
+$$
+F_{T}(t) = 1 - \frac{1}{1 + \lambda t^{\beta}}
+$$
+
+Así, para todo $t \in (0,\ +\infty)\subseteq \mathbb{R}^{++}$, la función de supervivencia viene dada por
+
+$$
+S(t) = \frac{1}{1 + \lambda t^{\beta}}; \ \ \ \ \ \ \beta, \lambda>0
+$$
+
+Los resultados de la estimación paramétrica, comparados con la estimación de Kaplan-Meier, son los siguientes:
+
+```{r, warning = FALSE}
+flexg_loglogis <- flexsurvreg(Surv(t, d) ~ 1, data = df, dist = "llogis") %>%
+  summary(type = "survival") %>% data.frame
+ggplot() + geom_line(aes(time, est, col = "Paramétrico (Log-logística)"),
+                     data = flexg_loglogis) + geom_step(aes(time,
+                        surv, col = "No-paramétrico"),
+                        data =non_par) + labs(x = "Tiempo (Días)",
+                      y = "Probabilidad de Supervivencia", col = "Ajustes", 
+                      title = "Comparación entre curvas de supervivencia")
+```
+
+Nótese que, formalmente, la función de riesgo se expresa como
+
+$$
+h(t) = \frac{f_{T}(t)}{S(t)}  = \frac{\beta\lambda t^{\beta - 1}}{1 + \lambda t^{\beta}}
+$$
+Adicionalmente, puesto que la función de riesgo acumulado corresponde a la antiderivada de la función de riesgo, se deduce que
+
+$$
+H(t) = Ln(1 + \lambda t^{\beta})
+$$
+cuya estimación se presenta en la siguiente gráfica: 
+
+
+```{r}
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Log-logística)"), data = flexg_loglogis) +
+  geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = non_par) +
+  labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes", 
+       title = "Comparación entre funciones de riesgo acumulado")
+```
+
+Puesto que el tiempo de supervivencia sigue una distribución log-logística, se sigue que el tiempo de supervivencia medio se define como
+
+$$
+E[T] = \int_{0}^{\infty}\frac{1}{1 + \lambda t^{\beta}}.dt
+$$
+
+La media y la mediana del tiempo de supervivencia son las siguientes:
+
+
+```{r}
+media <- c(as.numeric(sub(".*:", "", summary(flexg_loglogis)[4])))
+mediana <- c(as.numeric(sub(".*:", "", summary(flexg_loglogis)[3])))
+first <- c("T")
+med_med <- data.frame(first, media, mediana)
+colnames(med_med) <- c(" ", "Media", "Mediana" )
+kable(med_med)
+```
+
+
+### Distribución de Gompertz
+
+Supóngase que el tiempo de supervivencia $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ sigue una distribución de Gompertz con parámetros $\theta, \alpha>0$ tal que $T \sim Gompertz(\theta, \alpha)$, cuya función de densidad se define como 
+$$
+f_{T}(t) = \theta \exp \left\{\frac{\theta}{\alpha}\left[1 - 
+e^{\alpha t}\right] + \alpha t \right\}
+$$
+Formalmente, para todo $t \in \mathbb{R}^{++}$, la función de distribución acumulada $F_{T}(t)$ se define como
+
+
+$$
+F_{T}(t) = 1 - \exp\left\{\frac{\theta}{\alpha}\left[1 - e^{\alpha t}\right]\right\},
+$$
+
+de donde se desprende la siguiente función de supervivencia:
+
+$$
+S(t) = \exp\left\{\frac{\theta}{\alpha}\left[1 - e^{\alpha t}\right]\right\}
+$$
+
+Los resultados de la estimación paramétrica basada en el modelo de Gompertz, comparados con la estimación de Kaplan-Meier, son los siguientes:
+
+```{r, warning = FALSE}
+flexg_gompertz <- flexsurvreg(Surv(t, d) ~ 1, data = df, dist = "gompertz") %>% summary(type = "survival") %>% data.frame
+
+ggplot() + geom_line(aes(time, est, col = "Paramétrico (Gompertz)"),
+                     data = flexg_gompertz) + geom_step(aes(time,
+                          surv, col = "No-paramétrico"),
+                          data =non_par) + labs(x = "Tiempo (Días)",
+                          y = "Probabilidad de Supervivencia", col = "Ajustes",
+                          title = "Comparación entre curvas de supervivencia")
+```
+
+Nótese que, para todo $t \in \mathbb{R}^{++}$, $h(t) = -\partial Ln(S(t))/\partial t$, de donde se deduce
+
+$$
+h(t) = \theta e^{\alpha t}
+$$
+La función de riesgo acumulado asociada a la distribución de Gompertz se define como
+
+$$
+H(t) = \frac{\theta}{\alpha}\left[e^{\alpha t} - 1\right]
+$$
+
+cuya estimación se representa, en contraste con la estimación de Kaplan-Meier, mediante la siguiente gráfica:
+
+
+```{r}
+
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Gompertz)"), data = flexg_gompertz) +
+  geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = non_par) +
+  labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes", 
+       title = "Comparación entre funciones de riesgo acumuado")
+```
+
+Nótese que la mediana del tiempo de supervivencia, $t_{0.5}$, satisface que $S(t_{0.5})=05$; y su media,
+
+$$
+E[T] = \int_{0}^{\infty}\exp\left\{\frac{\theta}{\alpha}[1 - e^{\alpha t}]\right\}.dt
+$$
+
+Así,
+
+
+```{r}
+media <- c(as.numeric(sub(".*:", "", summary(flexg_gompertz)[4])))
+mediana <- c(as.numeric(sub(".*:", "", summary(flexg_gompertz)[3])))
+first <- c("T")
+med_med <- data.frame(first, media, mediana)
+colnames(med_med) <- c(" ", "Media", "Mediana" )
+kable(med_med)
+```
+
+
+
+## Estimación paramétrica con covariables
+
+### Estimaciones diferenciadas según el sexo
+
+#### Distribución gamma generalizada
+
+Considérese el $Sexo$ como covariable de interés. En primer lugar, si $T \sim GG(\lambda, \ \gamma, \ \alpha)$, los siguientes resultados corresponden a la estimación de las curvas de supervivencia diferenciadas según el sexo:
+
+```{r, warning=FALSE}
+model_gamma <- df_cov %>% group_by(Sexo) %>% do(flex = flexsurvreg(Surv(t, d) ~ 1, data = ., dist = "GenGamma.orig"))
+df_km_sexo <-  survfit(Surv(t, d) ~ Sexo, data = df_cov)
+
+plot(df_km_sexo,  main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Probabilidad de Supervivencia", col = c("red", "green"))
+lines(model_gamma$flex[[1]], ci = FALSE,   col = "red")
+lines(model_gamma$flex[[2]], ci = FALSE,   col = "green")
+```
+
+La estimación de las funciones de riesgo acumulada diferenciadas según el sexo se presentan en la siguiente gráfica:
+
+```{r, warning =FALSE}
+plot(df_km_sexo, main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Riesgo Acumulado", fun = "cumhaz", col = c("red", "green"))
+lines(model_gamma$flex[[1]], ci = F,  type = "cumhaz", col ="red")
+lines(model_gamma$flex[[2]], ci = F,  type = "cumhaz", col = "green")
+
+```
+
+
+#### Distribución log-logística
+
+Supóngase que $T \sim LL(\lambda, \ \beta)$. La siguiente gráfica presenta las curvas de supervivencia estimadas:
+
+```{r}
+model_logis <- new_df_covariables %>% group_by(Sexo) %>% do(flex = flexsurvreg(Surv(t, d) ~ 1, data = ., dist = "llogis"))
+
+plot(df_km_sexo, main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Probabilidad de Supervivencia", col = c("red", "green"))
+lines(model_logis$flex[[1]], ci = FALSE,  col = "red")
+lines(model_logis$flex[[2]], ci = FALSE,  col = "green")
+```
+
+La estimación de la función de riesgo acumulado corresponde a la siguiente gráfica: 
+
+
+```{r}
+plot(df_km_sexo, main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Riesgo Acumulado", fun = "cumhaz", col = c("red", "green"))
+lines(model_logis$flex[[1]], ci = F,  type = "cumhaz", col ="red")
+lines(model_logis$flex[[2]], ci = F,  type = "cumhaz", col = "green")
+```
+
+
+#### Distribución de Gompertz
+
+Finalmente, si $T \sim Gompertz(\theta, \ \alpha)$, las estimaciones de las curvas de supervivencia diferenciadas según el sexo son las siguientes:
+
+```{r}
+model_gompertz <- new_df_covariables %>% group_by(Sexo) %>% do(flex = flexsurvreg(Surv(t, d) ~ 1, data = ., dist = "gompertz"))
+
+plot(df_km_sexo, main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Probabilidad de Supervivencia", col = c("red", "green"))
+lines(model_gompertz$flex[[1]], ci = FALSE,  col = "red")
+lines(model_gompertz$flex[[2]], ci = FALSE,  col = "green")
+```
+
+Las funciones de riesgo acumulado estimadas se presentan en la siguiente gráfica: 
+
+```{r}
+plot(df_km_sexo, main = "Comparación paramétrica según el sexo", xlab = "Tiempo",
+     ylab = "Riesgo Acumulado", fun = "cumhaz", col = c("red", "green"))
+lines(model_gompertz$flex[[1]], ci = F,  type = "cumhaz", col ="red")
+lines(model_gompertz$flex[[2]], ci = F,  type = "cumhaz", col = "green")
+```
+
+
+### Estimaciones diferenciadas según grupos etarios
+
+Considérese tres grupos etarios distintos: primero, los pacientes de entre 0 y 30 años; segundo, entre 30 y 60 años; y tercero, los pacientes de 60 años en adelante. Nuevamente, se consideran tres distribuciones de probabilidad continua: la distribución gamma generalizada, la distribución log-logística y la distribución de Gompertz. En lo sucesivo, se presentan las modelos paramétricos para grupo etario.
+
+#### Pacientes de entre 0 y 30 años
+A partir del criterio de información de Akaike, el criterio de información bayesiano y la razón de verosimilitud, se selecciona el modelo paramétrico más apropiado. 
+
+```{r}
+
+datosflex <- new_df_cov %>% filter(Grupo_edad == "(0,30]")  
+dist <- c("GenGamma.orig", "llogis", "gompertz")
+data.Surv <- Surv(datosflex$t, datosflex$d)
+
+modelo_g1 <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
+AIC_modelo_g1 <- sapply(modelo_g1, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = x$loglik), simplify = T)
+ AIC_modelo_g1[, order(AIC_modelo_g1["AIC", ])]
+```
+
+El modelo paramétrico seleccionado está fundamentado en la distribución de Gompertz. El gráfico de bondad de ajuste transformado, que presenta una comparación entre el modelo paramétrico seleccionado y la estimación no-paramétrica de la función de supervivencia, contribuye a confirmar la conclusión anterior. 
+
+```{r}
+flex_g1 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz")
+
+f_est_g1 <- 1 - as.data.frame(summary(flex_g1))[, "est"]
+km_est_g1 <- survfit(Surv(t, d) ~ 1, datosflex) 
+km_est_g1 <- 1 - km_est_g1$surv
+
+ qplot((2/pi) * asin(sqrt(km_est_g1)), (2/pi) * asin(sqrt(f_est_g1))) + labs(x = "F-km-stab",
+     y = "F-emv-stab", title = "Gráfica de probabilidad estabilizada")
+```
+
+La siguiente gráfica presenta tanto la estimación del modelo paramétrico basado en la distribución de Gompertz como la estimación no-paramétrica de la función de supervivencia:
+
+
+```{r}
+flex_g1 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz") %>% summary(type = "survival") %>% data.frame
+ 
+km_g1 <- survfit(Surv(t, d) ~ 1, data = datosflex) %>% fortify
+ 
+ ggplot() + geom_line(aes(time, est, col = "Paramétrico (Gompertz)"), data = flex_g1) + geom_step(aes(time,
+     surv, col = "No-paramétrico"), data = km_g1) + labs(x = "Tiempo (Días)",
+     y = "Probabilidad de Supervivencia", col = "Ajustes", title = "Comparación entre curvas de supervivencia", subtitle = "Pacientes de entre 0 y 30 años")
+```
+
+Lo mismo aplica para la función de riesgo acumulado.
+
+```{r}
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Gompertz)"), data = flex_g1) +
+     geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = km_g1) +
+     labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes",
+          title = "Comparación entre funciones de riesgo acumulado",
+          subtitle = "Pacientes de entre 0 y 30 años")
+```
+
+
+#### Pacientes de entre 30 y 60 años
+Dados el grupo conformado por pacientes de entre 30 y 60 años, los criterios de información y la razón de verosimilitud proporcionan la siguiente comparación entre los tres modelos paramétricos:
+
+```{r}
+datosflex <- new_df_cov %>% filter(Grupo_edad == "(30,60]")  
+dist <- c("GenGamma.orig", "llogis", "gompertz")
+data.Surv <- Surv(datosflex$t, datosflex$d)
+
+modelo_g2 <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
+AIC_modelo_g2 <- sapply(modelo_g2, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = x$loglik), simplify = T)
+ AIC_modelo_g2[, order(AIC_modelo_g2["AIC", ])]
+```
+
+El criterio de información de Akaike sugiere un modelo paramétrico fundamentado en la distribución gamma generalizada; mientras que, a partir del criterio de información bayesiano, se deduce que el tiempo de supervivencia sigue una distribución de Gompertz. En virtud de la discrepancia mínima, y de conformidad con el modelo paramétrico para el primer grupo, se propone un modelo basado en la distribución de Gompertz. Nótese que, para la distribución gamma generalizada y la distribución de Gompertz, la gráfica de bondad de ajuste presenta una desviación análoga en la colas: 
+
+
+
+```{r}
+flex_g2 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz")
+
+f_est_g2 <- 1 - as.data.frame(summary(flex_g2))[, "est"]
+km_est_g2 <- survfit(Surv(t, d) ~ 1, datosflex) 
+km_est_g2 <- 1 - km_est_g2$surv
+
+ qplot((2/pi) * asin(sqrt(km_est_g2)), (2/pi) * asin(sqrt(f_est_g2))) + labs(x = "F-km-stab",
+     y = "F-emv-stab", title = "Gráfica de probabilidad estabilizada")
+```
+
+La estimación paramétrica de la función de supervivencia está representada en la siguiente gráfica:
+
+
+```{r}
+flex_g2 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz") %>% summary(type = "survival") %>% data.frame
+ 
+km_g2 <- survfit(Surv(t, d) ~ 1, data = datosflex) %>% fortify
+ 
+ ggplot() + geom_line(aes(time, est, col = "Paramétrico (Gompertz)"), data = flex_g2) + geom_step(aes(time,
+     surv, col = "No-paramétrico"), data = km_g2) + labs(x = "Tiempo (Días)",
+     y = "Probabilidad de Supervivencia", col = "Ajustes", 
+     title = "Comparación entre curvas de supervivencia", 
+     subtitle = "Pacientes de entre 30 y 60 años")
+```
+
+Y la función de riesgo acumulado estimada es la siguiente:
+
+```{r}
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Gompertz)"), data = flex_g2) +
+     geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = km_g2) +
+     labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes", 
+          title = "Comparación entre funciones de riesgo acumulado",
+          subtitle = "Pacientes de entre 30 y 60 años")
+```
+
+
+
+#### Pacientes de 60 años en adelante
+
+Dados los pacientes mayores de 60 años, la razón de verosimilitud y los criterios de información sugieren los siguientes resultados:
+
+
+```{r}
+datosflex <- new_df_cov %>% filter(Grupo_edad == "(60,90]")  
+dist <- c("GenGamma.orig", "llogis", "gompertz")
+data.Surv <- Surv(datosflex$t, datosflex$d)
+
+modelo_g3 <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
+AIC_modelo_g3 <- sapply(modelo_g3, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = x$loglik), simplify = T)
+ AIC_modelo_g3[, order(AIC_modelo_g3["AIC", ])]
+```
+
+En virtud de un razonamiento análogo al aducido más arriba, el modelo paramétrico seleccionado se fundamenta en la distribución de Gompertz. La siguiente gráfica de bondad de ajuste transformada presenta una comparación entre las estimaciones paramétricas y no-paramétricas sobre la curva de supervivencia:
+
+```{r}
+flex_g3 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz")
+
+f_est_g3 <- 1 - as.data.frame(summary(flex_g3))[, "est"]
+km_est_g3 <- survfit(Surv(t, d) ~ 1, datosflex) 
+km_est_g3 <- 1 - km_est_g3$surv
+
+ qplot((2/pi) * asin(sqrt(km_est_g3)), (2/pi) * asin(sqrt(f_est_g3))) + labs(x = "F-km-stab",
+     y = "F-emv-stab", title="Gráfica de probabilidad estabilizada")
+```
+
+Suponiendo que el tiempo de supervivencia $T \in \mathbb{R}^{++}$ sigue una distribución de Gompertz con parámetros $\theta, \alpha >0$, se deduce la siguiente estimación paramétrica de la curva de supervivencia:
+
+
+```{r}
+flex_g3 <- flexsurvreg(Surv(t, d) ~ 1, data = datosflex, dist = "gompertz") %>% summary(type = "survival") %>% data.frame
+ 
+km_g3 <- survfit(Surv(t, d) ~ 1, data = datosflex) %>% fortify
+ 
+ggplot() + geom_line(aes(time, est, col = "Paramétrico (Gompertz)"), data = flex_g3) + geom_step(aes(time, surv, col = "No-paramétrico"), data = km_g3) +
+   labs(x = "Tiempo (Días)", y = "Probabilidad de Supervivencia", 
+        col = "Ajustes",
+     title = "Comparación entre curvas de supervivencia",
+     subtitle = "Pacientes mayores de 60 años")
+```
+
+Lo mismo aplica para la función de riesgo acumulado.
+
+```{r}
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Gompertz)"), data = flex_g3) +
+     geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = km_g3) +
+     labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes",
+          title = "Comparación entre funciones de riesgo acumulado",
+          subtitle = "Pacientes mayores de 60 años")
+```
+
+
+
+## Comparación entre los modelos paramétricos
+
+La siguiente gráfica presenta una comparación sobre los tres modelos paramétricos considerados, a saber, los modelos paramétricos fundamentados en la distribución gamma generalizada -y sus casos particulares-, la distribución de Gompertz y la distribución log-logística:
+
+```{r, warning = FALSE}
+datosflex <- new_df_covariables
+dist <- c("weibull", "lnorm", "GenGamma.orig", "llogis", "gompertz") 
+data.Surv <- Surv(datosflex$t, datosflex$d)
+modelo_general <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
+
+plot(modelo_general[[1]], ci = F, conf.int = F, lty = 2, 
+     main = "Ajuste Paramétrico",
+     xlab = "Tiempo", ylab = "Probabilidad de Supervivencia")
+for (i in 2:length(dist)) plot(modelo_general[[i]], ci = F, conf.int = F, add = T, col = i + 1, lty = i)
+legend("topright", c("Kaplan-Meier", "Weibull", "Log-Normal","Gamma generalizada",
+                     "Log-logística", "Gompertz"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
+```
+
+El análisis gráfico se complementa mediante los criterios de información y la razón de verosimilitud.
+
+```{r, warning=FALSE}
+datosflex <- new_df_covariables
+data_surv <- Surv(datosflex$t, datosflex$d)
+modelo <- sapply(dist, 
+                function(x) flexsurvreg(data_surv ~ 1, data = datosflex, dist = x), 
+                USE.NAMES = T, simplify = F)
+
+IC_model <- sapply(modelo, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = logLik(x)), simplify = T)
+IC_model[, order(IC_model["AIC", ])]
+```
+
+El gráfico de bondad de ajuste presenta una comparación entre las estimaciones paramétricas y no-paramétricas de la función de supervivencia. Así, si $T \sim GG(\lambda, \ \gamma, \ \alpha)$, 
+
+```{r, warning = FALSE}
+flex_gamma <- flexsurvreg(Surv(t, d) ~ 1, data = new_df_covariables, dist = "GenGamma.orig") 
+F_est_gamma <- 1 - as.data.frame(summary(flex_gamma))[, "est"]
+km_est <- survfit(Surv(t, d) ~ 1, new_df_covariables) 
+km_est <- 1 - km_est$surv
+plot(F_est_gamma, km_est, main = "Gráfica de probabilidad estabilizada (Gamma generalizada)")
+```
+
+En segundo lugar, si $T \sim LL(\lambda, \ \beta)$, 
+
+```{r}
+flex_logis <- flexsurvreg(Surv(t, d) ~ 1, data = new_df_covariables, dist = "llogis") 
+F_est_logis <- 1 - as.data.frame(summary(flex_logis))[, "est"]
+plot(F_est_logis, km_est, main = "Gráfica de probabilidad estabilizada (Log-logística)")
+```
+
+Y, finalmente, si $T \sim Gompertz(\theta, \ \alpha)$,
+
+```{r}
+flex_gompertz <- flexsurvreg(Surv(t, d) ~ 1, data = new_df_covariables, dist = "gompertz") 
+F_est_gompertz <- 1 - as.data.frame(summary(flex_gompertz))[, "est"]
+plot(F_est_gompertz, km_est, main = "Gráfica de probabilidad estabilizada (Gompertz)")
+```
+
+En términos generales, los resultados anteriores coinciden con el análisis preliminar.
+
+
+# Modelo de riesgos proporcionales de Cox
+
+Sea $T \in (0, \ +\infty) \subseteq \mathbb{R}^{++}$ el tiempo de supervivencia, y sea $\vec{X} \in \mathbb{R}^{p}$ un $p$-vector de covariables independientes del tiempo tal que $\vec{X} = (X_{1}, \ \ldots, X_{p})$. Dado el $p$-vector de parámetros $\vec{\beta} = (\beta_{1}, \ \ldots, \beta_{p}) \in \mathbb{R}^{p}$, considérese el siguiente modelo básico de tasa de riesgo: 
+
+$$
+h(t, \vec{X}) = h_{0}(t)g(\beta^{\top}\vec{X})
+$$
+
+donde $g(\beta^{\top}\vec{X})$ es una función no-negativa sobre el vector de covariables; y $h_{0}(t)$, la función de riesgo base. Naturalmente, $h(t,\vec{0}) = h_{0}(t)$, lo cual implica que $h_{0}(t)$ representa el riesgo base que no depende de ninguna covariable. Como señalan Klein & Moescheberger (2003), el modelos de riesgos proporcionales de Cox (1972) es un tipo de modelo básico de tasa de riesgo con $g(\beta^{\top}\vec{X}) = \exp\{\beta^{\top}\vec{X}\}$ tal que
+
+$$
+h(t, \vec{X}) = h_{0}(t)e^{\beta^{\top}\vec{X}}
+$$
+El modelo de riesgos proporcionales de Cox, observan Kleinbaum & Klein (2012), es un modelo semiparamétrico robusto. Esto quiere decir que, si bien el modelo no supone una distribución de probabilidad sobre la función de riesgo base, se aproxima al modelo paramétrico correcto. Supóngase ahora que, para todo $i\in \mathbb{N}$, $\vec{X_{i}}\in \mathbb{R}^{p}$ es el vector de covariables asociado al $i$-ésimo individuo tal que $\vec{X_{i}} = (X_{1i}, \ \ldots, X_{pi})$. Dados los individuos $i,j \in \mathbb{N}$, el modelo de Cox proporciona una razón de riesgo estimada ($\hat{HR}$) que se define como
+
+$$
+\hat{HR} = \frac{\hat{h}(t, \vec{X}_{i})}{\hat{h}(t, \vec{X}_{j})}
+=
+exp\left\{\sum_{k=1}^{p}\hat{\beta}_{k}(X_{ki} - X_{kj})\right\}
+$$
+
+donde $\hat{h}(t, \vec{X}_{i}) > \hat{h}(t, \vec{X}_{j})$. El modelo de Cox es también conocido como modelo de riesgos proporcionales en el sentido en que presupone que las razones de riesgo no dependen del tiempo. 
+
+
+## Modelos estimados
+Considérese, en general, dos modelos con distintas covariables: el primer modelo considera la edad como covariable; el segundo; agrega el sexo como covariable e incluye un término de interacción. 
+
+### Modelo A
+Dada la covariable $Edad$, considérese el siguiente modelo de Cox:
+
+$$
+h(t, \vec{X}) = h_{0}(t)e^{\beta_{1}Edad}
+$$
+
+El resultado de la estimación es el siguiente:
+
+```{r}
+cox_model <- coxph(Surv(t, d) ~ Edad, data = df_cov)
+summary(cox_model)
+```
+
+La estimación opera mediante máxima verosimilitud y la prueba de significancia individual recurre al estadístico de Wald. En términos generales, se verifica que la covariable $Edad$ es estadísticamente significativa aun al nivel de significancia del $1\%$. Por hipótesis, se consideran pacientes de 20, 40 y 60 años. Las curvas de supervivencia estimadas vienen dadas por 
+```{r}
+cox_model <- coxph(Surv(t, d) ~ Edad , data = df_cov)
+datosnuevos <- data.frame(Edad = c(20, 40, 60))
+curva_sup <- survfit(cox_model, newdata = datosnuevos, conf.type="log-log")
+print(curva_sup, print.rmean = T) 
+```
+
+Gráficamente,
+
+```{r, warning = FALSE}
+ggsurvplot(fit = curva_sup, data = new_df_covariables, conf.int = T, title = "Curva de Supervivencia",
+           xlab = "Tiempo", ylab = "Probabilidad de supervivencia", 
+           legend.labs = c("20 años",
+                                "40 años","60 años"), legend.title = "Grupos: ")
+```
+
+Puesto que la función de riesgo base $h_{0}(t)$ satisface que $h_{0}(t) = h(t, Edad = 0)$, su estimación opera de la siguiente forma:
+
+```{r}
+cox_model <- coxph(Surv(t, d) ~ Edad, data = new_df_covariables)
+datosnuevo <- data.frame(Edad = 0)
+riesgo_base <- survfit(cox_model, datosnuevo)
+```
+
+
+```{r, echo=FALSE}
+outcome = with(riesgo_base, data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(outcome) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(outcome, caption = "Función de riesgo base estimada")
+```
+
+De manera similar, el siguiente resultado corresponde a la función estimada de riesgo acumulado 
+
+```{r}
+cbind(Tiempo = riesgo_base$time, RiesgoAcumulado = riesgo_base$cumhaz)[1:20,]
+```
+
+Por medio de los residuos de Schoenfeld, se examina la hipótesis de riesgos proporcionales, a saber, la hipótesis según la cual las razones de riesgo no dependen del tiempo.
+
+```{r}
+assump_1 <- cox.zph(cox_model)
+print(assump_1)
+```
+
+```{r}
+ggcoxzph(assump_1)
+```
+
+El valor-p global del Test de Schoenfeld sugiere que el supuesto de riesgos proporcionales no se mantiene. Adicionalmente, el modelo de riesgos proporcionales de Cox presupone una forma lineal para las covariables. El supuesto de linealidad o, más precisamente, la forma funcional de las covariables continuas es evaluada mediante los residuales martingala.
+
+```{r, warning=FALSE}
+ggcoxfunctional(Surv(t, d) ~ Edad, data = df_cov)
+```
+
+
+### Modelo B
+
+Dada la covariable $Edad$ y la covariable dicotómica $Sexo$, considérese el siguiente modelo de Cox:
+
+$$
+h(t, \vec{X}) = h_{0}(t)e^{\beta_{1}Edad + \beta_{2}Sexo + 
++ \beta_{3}Sexo*Edad},
+$$
+
+donde $Sexo*Edad$ corresponde a un término de interacción. Los resultados de la estimación son los siguientes:
+
+```{r}
+df_bin_cov <- df_cov
+df_bin_cov$Sexo <- factor(x = df_bin_cov$Sexo,levels = c("F", "M"), labels = c("1","0"))
+```
+
+
+```{r}
+cox_model_inter <- coxph(Surv(t, d) ~ Edad * Sexo, data = df_bin_cov)
+summary(cox_model_inter)
+```
+
+
+
+A partir del estadístico de Wald, se deduce que la covariable $Edad$ es estadísticamente significativa aun al nivel de significancia del $1\%$; mientras que la variable $Sexo$ y el término de interacción no son estadísticamente significativos. Por hipótesis, se consideran mujeres y hombres de 20 y 60 años. Los resultados son los siguientes:
+
+```{r}
+cox_model_inter <- coxph(Surv(t, d) ~ Edad * Sexo , data = df_bin_cov)
+datosnuevos <- data.frame(Edad = c(20, 60, 20, 60), Sexo =c(1,1,0,0))
+datosnuevos$Sexo <- as.factor(datosnuevos$Sexo)
+curva_sup_inter <- survfit(cox_model_inter, newdata = datosnuevos, conf.type="log-log")
+print(curva_sup_inter, print.rmean = T) 
+```
+
+Gráficamente, 
+
+```{r}
+ggsurvplot(fit = curva_sup_inter, data = df_bin_cov, conf.int = T, title = "Curva de Supervivencia",
+           xlab = "Tiempo", ylab = "Probabilidad de supervivencia", 
+           legend.labs = c("20 años mujer",
+                           "60 años mujer","20 años hombre", 
+                           "60 años hombre"), legend.title = "Grupos: ")
+
+```
+
+
+Dado el vector de covariables $\vec{X} \in \mathbb{R}^{3}$, la función de riesgo base $h_{0}(t)$ satisface que $h_{0}(t) = h(t,\vec{X}=\vec{0})$. Los resultados de la función de riesgo base estimada, dada la categoria de referencia $Sexo = 0$, son los siguientes: 
+
+
+```{r}
+datosnuevo <- data.frame(Edad = 0, Sexo = 0)
+datosnuevo$Sexo <- as.factor(datosnuevo$Sexo)
+riesgo_base_inter <- survfit(cox_model_inter, datosnuevo)
+```
+
+
+```{r}
+outcome = with(riesgo_base_inter, data.frame(time, n.risk, n.event, surv, std.err, lower, upper))[1:20,]
+colnames(outcome) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", "upper 95% CI")
+
+kable(outcome, caption = "Función de riesgo base estimada para la categoria de referencia")
+```
+
+
+El siguiente resultado corresponde a la función estimada de riesgo acumulado:
+
+```{r}
+cbind(Tiempo = riesgo_base_inter$time, RiesgoAcumulado = riesgo_base_inter$cumhaz)[1:20,]
+```
+
+
+
+La hipótesis de riesgos proporcionales es evaluada mediante los residuos de Schoenfeld.
+
+```{r}
+assump_2 <- cox.zph(cox_model_inter)
+print(assump_2)
+```
+
+
+```{r}
+ggcoxzph(assump_2)
+```
+
+
+Si bien el valor-p global asociado al test de Schoenfeld sugiere que le supuesto de riesgos proporcionales no se mantiene, el test individual de Schoenfeld verifica que el supuesto de riesgos proporcionales se cumple para la covariable $Sexo$.
+
+
+
+## Comparación entre ambos modelos
+
+Nótese que, en términos generales, se verifica que agregar la covariable $Sexo$ no contribuye al modelo de riesgos proporcionales.
+
+```{r}
+print(anova(cox_model_inter, cox_model))
+```
+
+
+# Referencias
+
+Klein, J. & Moeschberger, M. (2003). *Survival Analysis Techniques for
+Censored and Truncated Data*. New York: Springer-Verlag.
+
+Kleinbaum, D. & Klein, M. (2012). *Survival Analysis: A Self‐Learning
+Text (Third Edition)*. New York: Springer-Verlag.
+
+Lee, E. & Wang, J. (2003). *Statistical Methods for Survival Data
+Analysis*. New Jersey: John Wiley & Sons.
+
+Martinez, J. (2017, mayo 22). Análisis de supervivencia en R. *RPubs*.
+<https://rpubs.com/JavierMtzG/Supervivencia>
+
+Rickert, J. (2017, September 25). Survival Analysis with R. *R Views*.
+<https://rviews.rstudio.com/2017/09/25/survival-analysis-with-r/>

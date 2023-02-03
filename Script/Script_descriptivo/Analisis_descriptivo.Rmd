@@ -1,0 +1,117 @@
+---
+title: 'Análisis descriptivo: tiempo de permanencia en UCI'
+author: "Sergio A. Barona M."
+date: "7/1/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+library(knitr)
+library(survival) 
+library(KMsurv) 
+library(survMisc) 
+library(survminer) 
+library(ggfortify) 
+library(flexsurv) 
+library(actuar) 
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(xts)
+library(plyr)
+library(dplyr)
+library(writexl)
+library(knitr)
+library(moments)
+library(fitdistrplus)
+library(logspline)
+```
+
+# Análisis preliminar
+
+Con el propósito de desarrollar un análisis de supervivencia sobre los pacientes de COVID-19 en Unidades de Cuidados Intesivos (UCI) para Cali, Valle del Cauca, se presenta un análisis descriptivo sobre la variable de interés, a saber, el tiempo de permanencia en UCI. La muestra considerada corresponde a 1.980 pacientes de COVID-19 en UCI durante el período 2020-04-20:2021-11-30. Adicionalmente, se considera el sexo y la edad como covariables de interés. La estructura general de la base de datos se expresa en la **Tabla 1**. Nótese que *Caso* expresa la identificación del individuo según la información del Instituto Nacional de Salud (INS); *Tiempo*, el tiempo de permanencia del paciente en UCI; *Censura*, una variable dicotómica que expresa la censura por derecha^[Existen, por lo menos,
+tres clases de censura: la censura por derecha es el caso si el tiempo
+real de supervivencia es igual o superior al observado; la censura por
+izquierda, si el tiempo real de supervivencia es igual o inferior al
+tiempo de supervivencia observado; y la censura en intervalo, que
+combina la censura por derecha y la censura por izquierda, es el caso si
+el tiempo real de supervivencia se halla contenido en un intervalo
+conocido (Klein & Moeschberger, 2003). Habida cuenta de la naturaleza
+del evento de interés, se considera únicamente la censura por derecha y
+en los siguientes casos: uno, si el paciente permanece en UCI hasta la
+fecha en que el estudio concluye; y dos, si el paciente muere en UCI en
+virtud de una causa distinta al COVID-19.] (0 si es un dato censurado, 1 si no lo es); y *Sexo*, una variable dicotómica que expresa el sexo del paciente (0 si es masculino, 1 si es femenino).
+
+```{r, warning=FALSE, echo=FALSE}
+setwd("D:/Desktop/Proyecto_COVID")
+dataset = read.csv("Resultados/04.01.23/final_cov_040123.csv")
+kable(dataset[c(1:20),], col.names = c("Caso", "Tiempo", "Censura", "Edad", "Sexo"),
+      caption = "Tabla 1: Estructura general de la base de datos sobre el tiempo de permanencia en UCI para Cali, Valle del Cauca. Fuente: INS (2020,2021)")
+```
+
+Nótese que el tiempo mediano de permanencia en UCI es de 21 días, cuyo rango intercuartílico viene dado por [6, 75]. El tiempo promedio de permanencia en UCI es de 40.61 días. La edad promedio de los pacientes de COVID-19 en UCI es de 61.42 años. Nótese que ~96% de los datos corresponden a datos no-censurados y que, además, el ~64% de los pacientes de COVID-19 en UCI son personas de sexo masculino (véase **Tabla 2**).
+
+```{r, warning=FALSE, echo=FALSE}
+colnames(dataset) = c("Caso", "Tiempo", "Censura", "Edad", "Sexo")
+dataset$Censura = as.factor(dataset$Censura)
+dataset$Sexo = as.factor(dataset$Sexo)
+kable(summary(dataset[c("Tiempo", "Edad", "Censura", "Sexo")]), caption = "Tabla 2: Descripción de la variables y covariables de interés")
+```
+
+La **Figura 1** corresponde a la densidad empírica del tiempo de permanencia de pacientes de COVID-19 en UCI. La medida de asimetría (skewness) y la curtosis de la distribución se resumen en la **Tabla 3**. Nótese que la variable de interés no sigue una distribución normal. La distribución muestra una asimetría positiva ($skewness > 0$) de manera tal que el tiempo promedio (40.61) supera el tiempo mediano (21). Y, puesto que $kurtosis \approx 3$, la distribución no muestra colas anchas ni una alta dispersión (i.e. la distribución es mesocúrtica). 
+
+```{r, warning=FALSE, echo=FALSE}
+ggplot(dataset, aes(x=Tiempo)) + geom_histogram(aes(y=..density..),
+                                          colour = "black",
+                                          fill = "white", bins = 35) + geom_density(alpha=0.4, fill = "#FF6666") + labs(title = "Figura 1: Densidad empírica del tiempo de permanencia en UCI para pacientes de COVID-19")
+```
+
+
+```{r, warning=FALSE, echo=FALSE}
+sk <- data.frame(skewness(dataset$Tiempo), kurtosis(dataset$Tiempo))
+colnames(sk) <- c("Skewness", "Kurtosis")
+kable(sk, Caption= "Tabla 3: medida de asimetría (skewness) y curtosis de la distribución")
+```
+
+Considérese la **Figura 2** que, en términos generales, presenta una comparación de la medida de asimetría y la curtosis de la distribución anterior con las características de ciertas distribuciones de probabilidad.
+
+```{r, warning= FALSE, echo=FALSE}
+descdist(dataset$Tiempo, discrete = FALSE)
+```
+
+# Tratamiento de outliers 
+
+Dado el rango intercuartílico (IQR), considérese, por hipótesis, que un valor es atípico si está por fuera del intervalo cuyo límite inferior y superior viene dado, respectivamente, por $Q1 - 1,5*IQR$ y $Q3 + 1,5*IQR$. En general, no se encuentran observaciones atípicas (véase **Tabla 4**). 
+
+```{r, warning= FALSE, echo=FALSE}
+quant = quantile(dataset$Tiempo, probs = c(.25, .75), na.rm = FALSE)
+iqr = IQR(dataset$Tiempo)
+
+lower = quant[1] - 1.5*iqr
+upper = quant[2] + 1.5*iqr
+
+no_out = subset(dataset$Tiempo,
+                dataset$Tiempo > lower &
+                dataset$Tiempo < upper)
+
+dataset_no = dataset %>% filter(Tiempo %in% no_out)
+
+df_out = data.frame(Q1 = quant[1], Q3 = quant[2], IQR = iqr, Lower = lower, Upper = upper)
+
+kable(df_out, row.names = FALSE, caption = "Tabla 4: Información para la detección de outliers")
+
+```
+
+
+# Anexo
+
+
+
+
+
+
