@@ -89,6 +89,9 @@ write.csv(final_df_z,
           "Resultados/04.01.23/final_data_040123.csv", 
           row.names = FALSE)
 
+write.csv(final_df, 
+          "Resultados/04.01.23/complete_final_data_040123.csv", 
+          row.names = FALSE)
 
 rm(df_1, df_1_t, df_1_t_2, df_1_t_3, df_2, ubic, keep, drop,
    j, k, caso_x, x , y, z, final_df)
