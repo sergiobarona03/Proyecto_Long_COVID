@@ -1,4 +1,3 @@
-
 ############################
 ## Kaplan-Meier (ICU LoS) ##
 ############################
@@ -67,8 +66,14 @@ for (i in 1:nrow(dataset)) {
   
 }
 
-# Recodificación de la variable Censura
+# Establecer fecha de censura (90 días)
 
+for (k in 1:nrow(dataset)) {
+  if (dataset$t[k] > 90) {
+    dataset$t[k] = 90
+    dataset$d[k] = 0
+  }
+}
 
 ##############################################
 ##############################################
@@ -85,9 +90,9 @@ dataset_km$Censura = as.numeric(dataset_km$Censura)
 
 
 df_km <- survival::survfit(Surv(dataset_km$Tiempo, 
-                      dataset_km$Censura) ~ 1, data = dataset_km, 
-                 type = "kaplan-meier", error = "tsiatis", 
-                 conf.type = "log-log", conf.int = 0.95)
+                                dataset_km$Censura) ~ 1, data = dataset_km, 
+                           type = "kaplan-meier", error = "tsiatis", 
+                           conf.type = "log-log", conf.int = 0.95)
 
 
 outcome_1 = with(df_km, data.frame(time, n.risk,
@@ -95,14 +100,14 @@ outcome_1 = with(df_km, data.frame(time, n.risk,
                                    lower, upper))
 
 colnames(outcome_1) = c("time", "n.risk", "n.event", "surv", "std.err", "lower 95% CI", 
-                           "upper 95% CI")
+                        "upper 95% CI")
 
 
 # Guardar los resultados
 writexl::write_xlsx(outcome_1, 
-                    "Análisis estadístico/Kaplan_Meier/Estimación_general/Outcome.xlsx")
+                    "Análisis estadístico/Kaplan_Meier/90_días/Estimación_general/Outcome.xlsx")
 
-png(file = "Análisis estadístico/Kaplan_Meier/Estimación_general/Curva.png",
+png(file = "Análisis estadístico/Kaplan_Meier/90_días/Estimación_general/Curva.png",
     width = 558, height = 407)
 
 ggsurvplot(fit = df_km, data = dataset_km, conf.int = T, 
@@ -115,9 +120,8 @@ ggsurvplot(fit = df_km, data = dataset_km, conf.int = T,
            tables.theme = theme_cleantable(),
            ggthem = theme_bw()) 
 
+
 dev.off()
-
-
 
 ###############################
 ## I.Crónicos (T≥21 vs T<21) ##
@@ -126,30 +130,38 @@ dev.off()
 dataset_km_CCI = dataset[c("Caso", "t", "d", "Cronico")]
 colnames(dataset_km_CCI) = c("Caso", "Tiempo", "Censura", "CCI")
 
+# Añadir fila de censura (auxiliar)
+aux_row = data.frame(Caso = 999999, Tiempo = 90, 
+                     Censura = 0, 
+                     CCI = "Crítico")
+
+dataset_km_CCI = rbind(dataset_km_CCI, aux_row)
+
+# Estimador de Kaplan-Meier
 dataset_km_CCI$Censura = as.character(dataset_km_CCI$Censura)
 dataset_km_CCI$Censura[dataset_km_CCI$Censura == "2"] = "0"
 dataset_km_CCI$Censura = as.numeric(dataset_km_CCI$Censura)
 
 dataset_km_CCI$CCI = as.factor(dataset_km_CCI$CCI)
-  
+
 df_km_CCI <- survfit(Surv(dataset_km_CCI$Tiempo,
-                           dataset_km_CCI$Censura) ~ CCI, 
-                      data = dataset_km_CCI, 
+                          dataset_km_CCI$Censura) ~ CCI, 
+                     data = dataset_km_CCI, 
                      type = "kaplan-meier", 
-                      error = "tsiatis", 
-                      conf.type = "log-log", conf.int = 0.99)
+                     error = "tsiatis", 
+                     conf.type = "log-log", conf.int = 0.99)
 
 # Pacientes críticos
 outcome_CCI_1 = with(df_km_CCI[1], 
-                    data.frame(time, n.risk, n.event, 
-                               surv, std.err, lower, upper))
+                     data.frame(time, n.risk, n.event, 
+                                surv, std.err, lower, upper))
 
 colnames(outcome_CCI_1) = c("time", "n.risk", "n.event", 
-                           "surv", "std.err", "lower 95% CI", 
-                           "upper 95% CI")
+                            "surv", "std.err", "lower 95% CI", 
+                            "upper 95% CI")
 
 writexl::write_xlsx(outcome_CCI_1, 
-                    "Análisis estadístico/Kaplan_Meier/Estimación_crónicos/General/Outcome_críticos.xlsx")
+                    "Análisis estadístico/Kaplan_Meier/90_días/Estimación_crónicos/General/Outcome_críticos.xlsx")
 
 # Pacientes crónicos
 outcome_CCI_2 = with(df_km_CCI[2], 
@@ -157,14 +169,14 @@ outcome_CCI_2 = with(df_km_CCI[2],
                                 surv, std.err, lower, upper))
 
 colnames(outcome_CCI_2) = c("time", "n.risk", "n.event", 
-                           "surv", "std.err", "lower 95% CI", 
-                           "upper 95% CI")
+                            "surv", "std.err", "lower 95% CI", 
+                            "upper 95% CI")
 
 writexl::write_xlsx(outcome_CCI_2, 
-                    "Análisis estadístico/Kaplan_Meier/Estimación_crónicos/General/Outcome_crónicos.xlsx")
+                    "Análisis estadístico/Kaplan_Meier/90_días/Estimación_crónicos/General/Outcome_crónicos.xlsx")
 
 
-png(file = "Análisis estadístico/Kaplan_Meier/Estimación_general/Curva.png",
+png(file = "Análisis estadístico/Kaplan_Meier/90_días/Estimación_crónicos/General/Curva.png",
     width = 558, height = 407)
 
 ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
@@ -173,9 +185,12 @@ ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI,
            ylab = "Survival probability", 
            legend.title = "Prolonged ICU Stay",
            legend.labs = c("Critical illness", "Chronic illness"),
-           risk.table = TRUE,
-           tables.theme = theme_cleantable(),
-           ggthem = theme_bw())
+           risk.table = FALSE,
+           palette = c("black", "gray"),
+           ggthem = theme_bw(),
+           pval = TRUE,
+           pval.method = TRUE)
 
 dev.off()
+
 
