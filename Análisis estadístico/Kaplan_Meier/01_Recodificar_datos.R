@@ -25,7 +25,6 @@ library(fitdistrplus)
 library(logspline)
 
 # Carga de datos
-setwd("/Users/sergiobarona03/Desktop/Proyecto_Long_COVID/")
 dataset_cov = read.csv("Resultados/04.01.23/final_cov_040123.csv")
 dataset_cov = dataset_cov[c("Caso", "Edad", "Sexo")]
 dataset_corr = read.csv("Resultados/04.01.23/final_dataset_corr.csv")
@@ -65,7 +64,7 @@ dataset$Cronico = NA
 
 for (i in 1:nrow(dataset)) {
   
-  if (dataset$t[i] >= 21) {
+  if (dataset$t_UCI[i] >= 21) {
     dataset$Cronico[i] = "Crónico"
   }else{
     dataset$Cronico[i] = "Crítico"

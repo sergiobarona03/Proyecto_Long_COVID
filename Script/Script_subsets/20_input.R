@@ -6,7 +6,7 @@
 
 source(here::here("Script/Script_subsets", "11_recodificar.R"))
 
-# Base de datos de recepción (base de datos vacía)
+# Base de datos de recepci?n (base de datos vac?a)
 
 input = data.frame(Caso = dataset_na$Caso,
                    Casa = rep(NA, nrow(dataset_na)),
@@ -45,10 +45,10 @@ for (k in 1:nrow(input)) {
   # convertir en variables fecha
   df_1_t = df_1_t %>%  mutate(Date = ymd(Date))
   
-  # seleccionar el valor mínimo
+  # seleccionar el valor m?nimo
   x = which(input$Caso == df_1$Caso)
   
-  input$Hospital_UCI[x] = min(df_1_t$Date)
+  input$Hospital_UCI[x] = df_1_t$Date
   
 }
 
@@ -59,7 +59,7 @@ for (k in 1:nrow(input)) {
 
 
 for (j in 1:nrow(input)) {
-  
+
   print(j)
 
   df_1 = dataset_na[j,]
@@ -75,7 +75,7 @@ for (j in 1:nrow(input)) {
   #definir caso
   caso_x = as.numeric(df_1$Caso)
   
-  # ubicación del caso en input
+  # ubicaci?n del caso en input
   x = which(input$Caso == caso_x)
   
   # seleccionarlo en input
@@ -100,7 +100,7 @@ for (j in 1:nrow(input)) {
   # seleccionar las fechas superiores a la fecha de ingreso a UCI
   df_1_t_2 = df_1_t %>% filter(Date > y)
   
-  # seleccionar la fecha de salida de UCI (mínimo del subconjunto)
+  # seleccionar la fecha de salida de UCI (m?nimo del subconjunto)
   
   if (nrow(df_1_t_2)==0) {
     z = NA
@@ -108,7 +108,7 @@ for (j in 1:nrow(input)) {
     z = min(df_1_t_2$Date) 
   }
   
-  # se responde a la pregunta por la ubicación en z
+  # se responde a la pregunta por la ubicaci?n en z
   if (nrow(df_1_t_2)==0) {
     df_1_t_3 = df_1_t
     ubic = substring(rownames(df_1_t_3),1,1)

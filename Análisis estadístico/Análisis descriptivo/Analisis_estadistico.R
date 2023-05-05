@@ -1,7 +1,7 @@
 
 ###########################
-## Análisis estadístico  ##
-## (García et al., 2023) ##
+## An?lisis estad?stico  ##
+## (Garc?a et al., 2023) ##
 ###########################
 
 library(readxl)
@@ -11,7 +11,6 @@ library(ggplot2)
 library(moments)
 
 # Carga de datos
-setwd("D:\\Desktop\\Proyecto_Long_COVID\\")
 dataset_cov = read.csv("Resultados\\04.01.23\\final_cov_040123.csv")
 dataset_cov = dataset_cov[c("Caso", "Edad", "Sexo")]
 dataset_corr = read.csv("Resultados\\04.01.23\\final_dataset_corr.csv")
@@ -43,22 +42,27 @@ cronicos = dataset %>%  filter(t >= 21)
 criticos = dataset %>%  filter(t < 21)
   
 
-# Variable binaria (críticos y críticos crónicos)
+
+# Calcular t para casos censurados
+
+
+
+# Variable binaria (cr?ticos y cr?ticos cr?nicos)
 dataset$Cronico = NA
 
 for (i in 1:nrow(dataset)) {
   
   if (dataset$t[i] >= 21) {
-    dataset$Cronico[i] = "Crónico"
+    dataset$Cronico[i] = "CrÃ³nico"
   }else{
-    dataset$Cronico[i] = "Crítico"
+    dataset$Cronico[i] = "CrÃ­tico"
   }
   
 }
 
 ############################
 ############################
-## 1. Análisis preliminar ##
+## 1. An?lisis preliminar ##
 ############################
 ############################
 
@@ -140,7 +144,7 @@ continuas_criticos$Q1[3] = quantile(criticos$t_OS, c(0.25), type = 6)
 continuas_criticos$Q3[3] = quantile(criticos$t_OS, c(0.75), type = 6)
 
 descriptivo_continuas = list(continuas, continuas_cronicos, continuas_criticos)
-names(descriptivo_continuas) = c("Continuas", "Crónicos", "Críticos")
+names(descriptivo_continuas) = c("Continuas", "Cr?nicos", "Cr?ticos")
 rm(continuas, continuas_cronicos, continuas_criticos)
 
 ###########################################
@@ -159,7 +163,7 @@ colnames(sexo_criticos) = c("Sexo", "Freq")
 sexo_criticos$Share = (sexo_criticos$Freq/sum(sexo_criticos$Freq))*100
 
 descriptivo_sexo = list(sexo_total, sexo_cronicos, sexo_criticos)
-names(descriptivo_sexo) = c("Total", "Crónicos", "Críticos")
+names(descriptivo_sexo) = c("Total", "Cr?nicos", "Cr?ticos")
 rm(sexo_total, sexo_criticos, sexo_cronicos)
 
 
@@ -180,7 +184,7 @@ colnames(outcome_criticos) = c("Outcome", "Freq")
 outcome_criticos$Share = (outcome_criticos$Freq/sum(outcome_criticos$Freq))*100
 
 descriptivo_outcome = list(outcome_total, outcome_cronicos, outcome_criticos)
-names(descriptivo_outcome) = c("Total", "Crónicos", "Críticos")
+names(descriptivo_outcome) = c("Total", "Cr?nicos", "Cr?ticos")
 rm(outcome_total, outcome_cronicos, outcome_criticos)
 
 ############################################
@@ -216,7 +220,7 @@ mann_whitney$Sexo_W[3] = wilcox_sexo_OS$statistic
 mann_whitney$Sexo_p[3] = wilcox_sexo_OS$p.value
 
 ############################################
-## 1.6. Mann-Whitney U test (Crónicos)    ##
+## 1.6. Mann-Whitney U test (Cr?nicos)    ##
 ############################################
 
 # Edad
