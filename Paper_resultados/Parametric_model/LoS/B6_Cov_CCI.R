@@ -7,8 +7,8 @@ source(here::here("Paper_resultados/Parametric_model/LoS/",
 
 # group1 = CCI
 dataset_CCI = dataset %>% filter(CCI == "CCI")
-parametric_CCI = fitdist(dataset_CCI$t_UCI_desc, "gengamma",
-                        start = list(mu = 0.1, sigma = 0.1, Q = 0.1))
+parametric_CCI = fitdist(dataset_CCI$t_UCI_desc, "gengamma.orig",
+                         start = list(shape = 1.8, scale = 1, k = 1))
 parametros_CCI = data.frame(estimate = parametric_CCI$estimate,
                            sd = parametric_CCI$sd)
 
@@ -20,9 +20,9 @@ quantile_CCI = data.frame(variable = c("Q1", "Q2", "Q3"),
                          CI_1 = c(NA, NA, NA),
                          CI_2 = c(NA, NA, NA),
                          sample = c(NA, NA, NA))
-quantile_function = function(x){qgengamma(x, mu = parametric_CCI$estimate[1],
-                                          sigma = parametric_CCI$estimate[2],
-                                          Q = parametric_CCI$estimate[3])}
+quantile_function = function(x){qgengamma.orig(x, shape = parametric_CCI$estimate[1],
+                                          scale = parametric_CCI$estimate[2],
+                                          k = parametric_CCI$estimate[3])}
 q = c(0.25,0.5,0.75)
 for (k in 1:3) {
   quantile_CCI$distribution[k] = quantile_function(q[k])
@@ -35,8 +35,8 @@ rm(quantile_CCI, parametric_CCI)
 
 # group2 = Non-CCI
 dataset_non_CCI = dataset %>% filter(CCI == "non-CCI")
-parametric_non_CCI = fitdist(dataset_non_CCI$t_UCI_desc, "gengamma",
-                         start = list(mu = 0.1, sigma = 0.1, Q = 0.1))
+parametric_non_CCI = fitdist(dataset_non_CCI$t_UCI_desc, "gengamma.orig",
+                             start = list(shape = 1.8, scale = 1, k = 1))
 parametros_non_CCI = data.frame(estimate = parametric_non_CCI$estimate,
                             sd = parametric_non_CCI$sd)
 
@@ -48,9 +48,9 @@ quantile_non_CCI = data.frame(variable = c("Q1", "Q2", "Q3"),
                           CI_1 = c(NA, NA, NA),
                           CI_2 = c(NA, NA, NA),
                           sample = c(NA, NA, NA))
-quantile_function = function(x){qgengamma(x, mu = parametric_non_CCI$estimate[1],
-                                          sigma = parametric_non_CCI$estimate[2],
-                                          Q = parametric_non_CCI$estimate[3])}
+quantile_function = function(x){qgengamma.orig(x, shape = parametric_non_CCI$estimate[1],
+                                          scale = parametric_non_CCI$estimate[2],
+                                          k = parametric_non_CCI$estimate[3])}
 q = c(0.25,0.5,0.75)
 for (k in 1:3) {
   quantile_non_CCI$distribution[k] = quantile_function(q[k])
@@ -68,3 +68,41 @@ ks_test$p_value[3] = ks_CCI$p.value
 
 writexl::write_xlsx(ks_test, 
                     "Paper_resultados/Parametric_model/LoS/Output/Model_selection/Kolmogorov_Smirnov_test.xlsx")
+
+
+
+##########################################
+## Anexo: figura para diferencias de la ##
+##   distribución (CCI vs non-CCI)      ##
+##########################################
+
+gamma_CCI = fitdist(dataset_CCI$t_UCI_desc, "gengamma.orig",
+                    start = list(shape = 1.8, scale = 1, k = 1))
+
+gamma_non_CCI = fitdist(dataset_non_CCI$t_UCI_desc, "gengamma.orig",
+                        start = list(shape = 1.8, scale = 1, k = 1))
+
+png(file = "Paper_resultados/Parametric_model/LoS/Output/Model_selection/CCI/Density, plot.png",
+    width = 400, height = 460)
+
+
+ggplot(data = data.frame(x = c(1,100)), aes (x=x)) + stat_function(
+  fun = function(x)dgengamma.orig(x, shape = gamma_CCI$estimate[1],
+                                  scale = gamma_CCI$estimate[2],
+                                  k = gamma_CCI$estimate[3]), aes(linetype = "CCI")) + stat_function(
+                                    fun = function(x)dgengamma.orig(x,
+                                shape = gamma_non_CCI$estimate[1],
+                                scale = gamma_non_CCI$estimate[2],
+                                k = gamma_non_CCI$estimate[3]), aes(linetype = "Non-CCI")) +labs(linetype = "Group",
+                                                                                                 y = "Density",
+                                                                                                 x= "Time since admission to ICU (days)") +
+  theme(legend.position = c(0.7,0.7), legend.direction = "horizontal") 
+
+
+dev.off()
+
+
+
+
+
+

@@ -12,8 +12,8 @@ source(here::here("Paper_resultados/Parametric_model/LoS/",
 ###############################
 
 weibull.fit = fitdist(dataset$t_UCI_desc, "weibull")
-gamma.fit = fitdist(dataset$t_UCI_desc, "gengamma",
-                    start = list(mu = 1, sigma = 1, Q = 1))
+gamma.fit = fitdist(dataset$t_UCI_desc, "gengamma.orig",
+                    start = list(shape = 1, scale = 0.1, k = 1))
 lnorm.fit = fitdist(dataset$t_UCI_desc, "lnorm")
 llogis.fit = fitdist(dataset$t_UCI_desc, "llogis")
 gompertz.fit = fitdist(dataset$t_UCI_desc, distr = "gompertz",

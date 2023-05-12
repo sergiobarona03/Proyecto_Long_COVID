@@ -14,17 +14,17 @@ source(here::here("Paper_resultados/Parametric_model/LoS/",
 #######################
 ## Casos poblacional ##
 #######################
-parametric_los = fitdist(dataset$t_UCI_desc, "gengamma",
-                         start = list(mu = 1, sigma = 1, Q = 1))
+parametric_los = fitdist(dataset$t_UCI_desc, "gengamma.orig",
+                         start = list(shape = 1, scale = 0.1, k = 1))
 # Parámetros estimados
 parametros_poblacion = data.frame(estimate = parametric_los$estimate, sd = parametric_los$sd)
 writexl::write_xlsx(parametros_poblacion, 
                       "Paper_resultados/Parametric_model/LoS/Output/Model_selection/Total/estimate.xlsx")
 
 # Resultados (mediana e IQR estimados con IC)
-quantile_function = function(x){qgengamma(x, mu = parametric_los$estimate[1],
-            sigma = parametric_los$estimate[2],
-          Q = parametric_los$estimate[3])}
+quantile_function = function(x){qgengamma.orig(x, shape = parametric_los$estimate[1],
+            scale = parametric_los$estimate[2],
+          k = parametric_los$estimate[3])}
 
 quantile = data.frame(variable = c("Q1", "Q2", "Q3"),
                       distribution = c(NA, NA, NA),

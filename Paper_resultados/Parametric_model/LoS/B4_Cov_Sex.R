@@ -7,8 +7,8 @@ source(here::here("Paper_resultados/Parametric_model/LoS/",
 
 # Sexo == 0 (masculino)
 dataset_male = dataset %>% filter(sex == 0)
-parametric_male = fitdist(dataset_male$t_UCI_desc, "gengamma",
-                          start = list(mu = 1, sigma = 1, Q = 1))
+parametric_male = fitdist(dataset_male$t_UCI_desc,"gengamma.orig",
+                          start = list(shape = 1, scale = 0.1, k = 1))
 parametros_male = data.frame(estimate = parametric_male$estimate, sd = parametric_male$sd)
 writexl::write_xlsx(parametros_male, 
                     "Paper_resultados/Parametric_model/LoS/Output/Model_selection/Sex/estimate_male.xlsx")
@@ -18,9 +18,9 @@ quantile_male = data.frame(variable = c("Q1", "Q2", "Q3"),
                            CI_1 = c(NA, NA, NA),
                            CI_2 = c(NA, NA, NA),
                            sample = c(NA, NA, NA))
-quantile_function = function(x){qgengamma(x, mu = parametric_male$estimate[1],
-                                          sigma = parametric_male$estimate[2],
-                                          Q = parametric_male$estimate[3])}
+quantile_function = function(x){qgengamma.orig(x, shape = parametric_male$estimate[1],
+                                          scale = parametric_male$estimate[2],
+                                          k = parametric_male$estimate[3])}
 q = c(0.25,0.5,0.75)
 for (k in 1:3) {
   quantile_male$distribution[k] = quantile_function(q[k])
@@ -33,8 +33,8 @@ rm(quantile_male, parametric_male)
 
 # Sexo == 1 (femenino)
 dataset_female = dataset %>% filter(sex == 1)
-parametric_female = fitdist(dataset_female$t_UCI_desc, "gengamma",
-                            start = list(mu = 1, sigma = 1, Q = 1))
+parametric_female = fitdist(dataset_female$t_UCI_desc, "gengamma.orig",
+                            start = list(shape = 1, scale = 0.1, k = 1))
 parametros_female = data.frame(estimate = parametric_female$estimate, sd = parametric_female$sd)
 writexl::write_xlsx(parametros_female, 
                     "Paper_resultados/Parametric_model/LoS/Output/Model_selection/Sex/estimate_female.xlsx")
@@ -44,9 +44,9 @@ quantile_female = data.frame(variable = c("Q1", "Q2", "Q3"),
                              CI_1 = c(NA, NA, NA),
                              CI_2 = c(NA, NA, NA),
                              sample = c(NA, NA, NA))
-quantile_function = function(x){qgengamma(x, mu = parametric_female$estimate[1],
-                                          sigma = parametric_female$estimate[2],
-                                          Q = parametric_female$estimate[3])}
+quantile_function = function(x){qgengamma.orig(x, shape = parametric_female$estimate[1],
+                                          scale = parametric_female$estimate[2],
+                                          k = parametric_female$estimate[3])}
 q = c(0.25,0.5,0.75)
 for (k in 1:3) {
   quantile_female$distribution[k] = quantile_function(q[k])
