@@ -32,7 +32,7 @@ library(logspline)
 ############################################
 flexg_gamma <- flexsurvreg(Surv(t_UCI, d) ~ 1,
                            data = dataset, 
-                           dist = "GenGamma.orig") %>% summary(type = "survival") %>% data.frame
+                           dist = "gengamma.orig") %>% summary(type = "survival") %>% data.frame
 
 non_par <- survfit(Surv(t_UCI, d) ~ 1, data = dataset) %>% fortify
 

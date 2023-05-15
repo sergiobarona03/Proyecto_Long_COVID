@@ -11,7 +11,7 @@ source(here::here("Paper_resultados/Descriptive_analysis/05_Chi_2_Fisher/",
 ##    (Salida de los modelos paramétricos)    ##
 ################################################
 # gamma
-gamma_model = flexg_gamma[c("time", "est")]
+gamma_model = flexg_gamma
 colnames(gamma_model) = c("time", "gamma")
 
 # gompertz
@@ -42,7 +42,6 @@ comparar = merge(comparar, weibull_model, by = "time")
 
 ########################################## 
 ## Comparación de modelos paramétricos  ##
-## (Criterio de información de Akaike)  ##
 ##########################################
 
 dist <- c("weibull", "lnorm", "GenGamma.orig", "llogis", "gompertz", "exp") 
@@ -50,15 +49,29 @@ dist <- c("weibull", "lnorm", "GenGamma.orig", "llogis", "gompertz", "exp")
 data.Surv <- Surv(dataset$t_UCI, dataset$d)
 modelo_general <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
 
+png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Parametric_model_vs.png",
+    width = 900, height = 700)
+
 plot(modelo_general[[1]], ci = F, conf.int = F, lty = 2, 
-     main = "Figura 28: ajuste Paramétrico",
-     xlab = "Tiempo", ylab = "Probabilidad de Supervivencia")
+     main = "",
+       xlab = "Time since admission to ICU (days)", ylab = "Survival probability")
 for (i in 2:length(dist)) plot(modelo_general[[i]], ci = F, conf.int = F, add = T, col = i + 1, lty = i)
-legend("bottomright", c("Kaplan-Meier", "Weibull", "Log-Normal","Gamma generalizada",
-                        "Log-logística", "Gompertz", "Exponencial"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
+legend("bottomright", c("Kaplan-Meier", "Weibull", "Log-normal","Generalized Gamma",
+                        "Log-logistic", "Gompertz", "Exponential"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
+dev.off()
 
 
+plot(modelo_general[[1]], ci = F, conf.int = F, lty = 2, 
+     main = "",
+     xlab = "Time since admission to ICU (days)", ylab = "Survival probability")
+for (i in 2:length(dist)) plot(modelo_general[[i]], ci = F, conf.int = F, add = T, col = i + 1, lty = i)
+legend("bottomright", c("Kaplan-Meier", "Weibull", "Log-normal","Generalized Gamma",
+                        "Log-logistic", "Gompertz", "Exponential"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
 
+
+##########################################
+## (Criterio de información de Akaike)  ##
+##########################################
 
 data_surv <- Surv(dataset$t_UCI, dataset$d)
 modelo <- sapply(dist, 
@@ -68,10 +81,22 @@ modelo <- sapply(dist,
 IC_model <- sapply(modelo, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = logLik(x)), simplify = T)
 IC_model[, order(IC_model["AIC", ])]
 
+
+
 kable(IC_model, caption = "Tabla 13: Criterios de información", col.names = c("Gamma generalizada", "Weibull", "Gompertz", "Log-Normal", "Log-Logística"))
 
 
+# Guardar en formato latex
+IC_model_t = IC_model %>% as.matrix() %>% t() %>% as.data.frame()
 
+write_xlsx(IC_model_t, 
+           "Paper_resultados/Parametric_model/Survival_rate/Output/IC_model.xlsx")
+
+IC_model_latex  = kable(IC_model_t, 
+                            caption = "Criterios de información",
+                            format = "latex")
+writeLines(IC_model_latex,
+           "Paper_resultados/Parametric_model/Survival_rate/Output/IC_model.tex")
 
 
 
