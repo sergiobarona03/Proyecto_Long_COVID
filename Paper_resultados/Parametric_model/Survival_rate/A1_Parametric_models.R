@@ -6,6 +6,27 @@
 source(here::here("Paper_resultados/Descriptive_analysis/05_Chi_2_Fisher/",
                   "Fisher_test.R"))
 
+library(here)
+library(survival) 
+library(KMsurv) 
+library(survMisc) 
+library(survminer) 
+library(ggfortify) 
+library(flexsurv) 
+library(actuar) 
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(xts)
+library(plyr)
+library(dplyr)
+library(writexl)
+library(knitr)
+library(moments)
+library(fitdistrplus)
+library(logspline)
+
 ############################################
 ## Modelo paramétrico gamma generalizado  ##
 ############################################
@@ -100,5 +121,22 @@ ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Log-Normal)"), da
   geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = non_par) +
   labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes")
 
+
+#######################################
+## Modelo paramétrico Weibull        ##
+#######################################
+flexg_weibull <- flexsurvreg(Surv(t_UCI, d) ~ 1, data = dataset, dist = "weibull") %>% summary(type = "survival") %>% data.frame
+
+# Curva de supervivencia
+ggplot() + geom_line(aes(time, est, col = "Parametric model (Weibull)"),
+                     data = flexg_lnorm) + geom_step(aes(time,
+                                                         surv, col = "Kaplan-Meier estimator"),
+                                                     data =non_par) + labs(x = "Time since admission to ICU (days)",
+                                                                           y = "Survival probability",
+                                                                           col = "")
+# Función de riesgo acumulado
+ggplot() + geom_line(aes(time, -log(est), col = "Paramétrico (Weibull)"), data = flexg_lnorm) +
+  geom_step(aes(time, -log(surv), col = "No-paramétrico"), data = non_par) +
+  labs(x = "Tiempo (Días)", y = "Riesgo Acumulado", col = "Ajustes")
 
 
