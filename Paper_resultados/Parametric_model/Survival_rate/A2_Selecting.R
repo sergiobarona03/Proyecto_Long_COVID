@@ -3,8 +3,8 @@
 ## Selección del modelo paramétrico ##
 ######################################
 
-source(here::here("Paper_resultados/Descriptive_analysis/05_Chi_2_Fisher/",
-                  "Fisher_test.R"))
+source(here::here("Paper_resultados/Parametric_model/Survival_rate/",
+                  "A1_Parametric_models.R"))
 
 ################################################
 ## Comparación de las tasas de supervivencia  ##
@@ -44,35 +44,81 @@ comparar = merge(comparar, weibull_model, by = "time")
 ## Comparación de modelos paramétricos  ##
 ##########################################
 
-dist <- c("weibull", "lnorm", "GenGamma.orig", "llogis", "gompertz", "exp") 
-
-data.Surv <- Surv(dataset$t_UCI, dataset$d)
-modelo_general <- sapply(dist, function(x) flexsurvreg(data.Surv ~ 1, dist = x), USE.NAMES = T, simplify = F)
+# Curvas de supervivencia
+dist_surv <- c("Weibull", "Log-normal",
+                 "Generalized Gamma", "Log-Logistic",
+                 "Gompertz", "Exponential") 
+surv_input = list(flexg_weibull, flexg_lnorm, flexg_gamma,
+                    flexg_loglogis, flexg_gompertz, flexg_exp)
+names(surv_input) = dist_surv
 
 png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Parametric_model_vs.png",
-    width = 900, height = 700)
+    width = 500, height = 450)
 
-plot(modelo_general[[1]], ci = F, conf.int = F, lty = 2, 
-     main = "",
-       xlab = "Time since admission to ICU (days)", ylab = "Survival probability")
-for (i in 2:length(dist)) plot(modelo_general[[i]], ci = F, conf.int = F, add = T, col = i + 1, lty = i)
-legend("bottomright", c("Kaplan-Meier", "Weibull", "Log-normal","Generalized Gamma",
-                        "Log-logistic", "Gompertz", "Exponential"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
+ggplot() + geom_line(aes(time, (est), 
+                         col = names(surv_input)[1]), 
+                     data = surv_input[[1]],
+) + geom_line(aes(time, (est), 
+                  col = names(surv_input)[2]), 
+              data = surv_input[[2]],
+) + geom_line(aes(time, (est), 
+                  col = names(surv_input)[3]), 
+              data = surv_input[[3]],
+) + geom_line(aes(time, (est), 
+                  col = names(surv_input)[4]), 
+              data = surv_input[[4]],
+) + geom_line(aes(time, (est), 
+                  col = names(surv_input)[5]), 
+              data = surv_input[[5]],
+) + geom_line(aes(time, (est), 
+                  col = names(surv_input)[6]), 
+              data = surv_input[[6]],
+) + geom_step(aes(time, (surv), col = "Kaplan-Meier"), data = non_par) +
+    labs(x = "Time since admission to ICU (days)", 
+         y = "Survival probability", col = "") + scale_color_viridis_d()+ theme(
+             legend.position = c(0.8, 0.7), legend.background = element_blank()
+  
+                                                                                           )
 dev.off()
 
+# Funciones de riesgo acumulado
+dist_hazard <- dist_surv 
+hazard_input = dist_input
+names(hazard_input) = dist_hazard
 
-plot(modelo_general[[1]], ci = F, conf.int = F, lty = 2, 
-     main = "",
-     xlab = "Time since admission to ICU (days)", ylab = "Survival probability")
-for (i in 2:length(dist)) plot(modelo_general[[i]], ci = F, conf.int = F, add = T, col = i + 1, lty = i)
-legend("bottomright", c("Kaplan-Meier", "Weibull", "Log-normal","Generalized Gamma",
-                        "Log-logistic", "Gompertz", "Exponential"), lty = 1:(length(dist) + 1), col = 1:(length(dist) + 1))
+png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Hazard_model_vs.png",
+    width = 500, height = 450)
 
+ggplot() + geom_line(aes(time, -log(est), 
+                         col = names(hazard_input)[1]), 
+                     data = hazard_input[[1]],
+) + geom_line(aes(time, -log(est), 
+                  col = names(hazard_input)[2]), 
+              data = hazard_input[[2]],
+) + geom_line(aes(time, -log(est), 
+                  col = names(hazard_input)[3]), 
+              data = hazard_input[[3]],
+) + geom_line(aes(time, -log(est), 
+                  col = names(hazard_input)[4]), 
+              data = hazard_input[[4]],
+) + geom_line(aes(time, -log(est), 
+                  col = names(hazard_input)[5]), 
+              data = hazard_input[[5]],
+) + geom_line(aes(time, -log(est), 
+                  col = names(hazard_input)[6]), 
+              data = hazard_input[[6]],
+) + geom_step(aes(time, -log(surv), col = "Kaplan-Meier"), data = non_par) +
+    labs(x = "Time since admission to ICU (days)", 
+         y = "Cumulative Hazard", col = "") + scale_color_viridis_d() + theme(
+             legend.position = c(0.8, 0.3), legend.background = element_blank()
+         )
 
+dev.off()
 ##########################################
 ## (Criterio de información de Akaike)  ##
 ##########################################
-
+dist = c("weibull", "lnorm", "GenGamma.orig",
+         "llogis", "gompertz", "exp")
 data_surv <- Surv(dataset$t_UCI, dataset$d)
 modelo <- sapply(dist, 
                  function(x) flexsurvreg(data_surv ~ 1, data = dataset, dist = x), 
@@ -80,10 +126,6 @@ modelo <- sapply(dist,
 
 IC_model <- sapply(modelo, function(x) c(AIC = AIC(x), BIC = BIC(x), LogLik = logLik(x)), simplify = T)
 IC_model[, order(IC_model["AIC", ])]
-
-
-
-kable(IC_model, caption = "Tabla 13: Criterios de información", col.names = c("Gamma generalizada", "Weibull", "Gompertz", "Log-Normal", "Log-Logística"))
 
 
 # Guardar en formato latex
@@ -97,6 +139,8 @@ IC_model_latex  = kable(IC_model_t,
                             format = "latex")
 writeLines(IC_model_latex,
            "Paper_resultados/Parametric_model/Survival_rate/Output/IC_model.tex")
+
+
 
 
 
