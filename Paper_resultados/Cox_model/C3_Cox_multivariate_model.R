@@ -12,7 +12,7 @@ source(here::here("Paper_resultados/Cox_model/",
 ## Full multivariate model ##
 #############################
 #############################
-cox_multivariate = coxph(formula = Surv(t_UCI, d) ~ Group_age + CCI, data = dataset_semiparametric)
+cox_multivariate = coxph(formula = Surv(t_UCI, d) ~ sex + age, data = dataset_semiparametric)
 
 coef_mv = as.data.frame(summary(cox_multivariate)[["coefficients"]])
 colnames(coef_mv) = c("coef", "HR", "sd_coef", "z", "p_value")
