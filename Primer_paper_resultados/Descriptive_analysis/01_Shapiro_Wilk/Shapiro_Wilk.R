@@ -15,6 +15,7 @@ library(kableExtra)
 # Cargar datos
 dataset = read.csv("Paper_resultados/Dataset/Output/cov_final_dataset.csv")
 
+
 # Base de datos de recepción
 normal = data.frame(Variable = c("Edad", "ICU_LoS", "Onset_Adm"), 
                     Skewness = c(NA,NA,NA), Kurtosis=c(NA,NA,NA),
