@@ -26,6 +26,8 @@ library(knitr)
 library(moments)
 library(fitdistrplus)
 library(logspline)
+library(officer)
+library(rvg)
 
 ############################################
 ## Modelo paramétrico gamma generalizado  ##

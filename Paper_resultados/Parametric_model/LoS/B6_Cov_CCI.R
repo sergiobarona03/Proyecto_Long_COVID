@@ -82,11 +82,10 @@ gamma_CCI = fitdist(dataset_CCI$t_UCI_desc, "gengamma.orig",
 gamma_non_CCI = fitdist(dataset_non_CCI$t_UCI_desc, "gengamma.orig",
                         start = list(shape = 1.8, scale = 1, k = 1))
 
-png(file = "Paper_resultados/Parametric_model/LoS/Output/Model_selection/CCI/Density, plot.png",
-    width = 400, height = 460)
 
 
-ggplot(data = data.frame(x = c(1,100)), aes (x=x)) + stat_function(
+
+p = ggplot(data = data.frame(x = c(1,100)), aes (x=x)) + stat_function(
   fun = function(x)dgengamma.orig(x, shape = gamma_CCI$estimate[1],
                                   scale = gamma_CCI$estimate[2],
                                   k = gamma_CCI$estimate[3]), aes(linetype = "CCI")) + stat_function(
@@ -99,7 +98,12 @@ ggplot(data = data.frame(x = c(1,100)), aes (x=x)) + stat_function(
   theme(legend.position = c(0.7,0.7), legend.direction = "horizontal") 
 
 
-dev.off()
+p_dml = rvg::dml(ggobj = p)
+officer::read_pptx() %>% officer::add_slide() %>%
+  officer::ph_with(p_dml, ph_location()) %>%
+  base::print("Paper_resultados/Parametric_model/LoS/Output/Model_selection/CCI/Density, plot.pptx")
+rm(p, p_dml)
+
 
 
 

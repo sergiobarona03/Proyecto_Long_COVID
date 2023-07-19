@@ -47,9 +47,7 @@ writexl::write_xlsx(outcome_CCI_f,
                     "Paper_resultados/Kaplan_Meier/Output/CCI/Sex/Outcome_female.xlsx")
 
 # Curvas de supervivencia estimadas
-png(file = "Paper_resultados/Kaplan_Meier/Output/CCI/Sex/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
+p = ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
            conf.int = F, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability", 
@@ -58,7 +56,12 @@ ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI,
            palette = c("black", "lightgray"),
            legend.labs = c("Male", "Female"),
            ggthem = theme_bw())
-dev.off()
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+  officer::ph_with(p_dml, ph_location()) %>%
+  base::print("Paper_resultados/Kaplan_Meier/Output/CCI/Sex/Curva.pptx")
+rm(p, p_dml)
+
 
 
 # Test log-rank
@@ -113,9 +116,8 @@ writexl::write_xlsx(outcome_CCI_g2,
                     "Paper_resultados/Kaplan_Meier/Output/CCI/Age/Outcome_g2.xlsx")
 
 # Curvas de supervivencia estimadas
-png(file = "Paper_resultados/Kaplan_Meier/Output/CCI/Age/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
+
+p = ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
            conf.int = F, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability", 
@@ -124,7 +126,11 @@ ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI,
            palette = c("black", "gray"),
            legend.labs = c("[18,65)", "[65,Inf)"),
            ggthem = theme_bw())
-dev.off()
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+  officer::ph_with(p_dml, ph_location()) %>%
+  base::print("Paper_resultados/Kaplan_Meier/Output/CCI/Age/Curva.pptx")
+rm(p, p_dml)
 
 # Test log-rank
 mantel_CCI_age = survdiff(Surv(dataset_km_CCI$Time,

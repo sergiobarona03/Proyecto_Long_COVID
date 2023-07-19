@@ -23,27 +23,25 @@ schoenfeld_CCI_output = as.data.frame(print(schoenfeld_CCI))
 writexl::write_xlsx(schoenfeld_CCI_output,
                     "Paper_resultados/Cox_model/Output/Assumptions/CCI/Schoenfeld_CCI.xlsx")
 
-
-png(file = "Paper_resultados/Cox_model/Output/Assumptions/CCI/Schoenfeld_CCI_sex.png",
-    width = 400, height = 400)
+setEPS()
+postscript("Paper_resultados/Cox_model/Output/Assumptions/CCI/Schoenfeld_CCI_sex.eps")
 ggcoxzph(schoenfeld_CCI, se = TRUE,
-         var = c("sex"), point.col = "black") + labs(x = "Time", y = "??(t)", title = "", 
+         var = c("sex"), point.col = "black") + labs(x = "Time", y = "B(t)", title = "", 
                                                      subtitle = "") 
-
 dev.off()
 
 
-png(file = "Paper_resultados/Cox_model/Output/Assumptions/CCI/Schoenfeld_CCI_age.png",
-    width = 400, height = 400)
+setEPS()
+postscript("Paper_resultados/Cox_model/Output/Assumptions/CCI/Schoenfeld_CCI_age.eps")
 ggcoxzph(schoenfeld_CCI, se = TRUE,
-         var = c("Group_age"), point.col = "black") + labs(x = "Time", y = "??(t)", title = "", 
+         var = c("Group_age"), point.col = "black") + labs(x = "Time", y = "B(t)", title = "", 
                                 subtitle = "")
 dev.off()
 
 
 
-############################# Paréntesis #############################################################
-############## Estimación de la curva de supervivencia ###############################################
+############################# Par?ntesis #############################################################
+############## Estimaci?n de la curva de supervivencia ###############################################
 CCI_semiparametric$sex = as.factor(CCI_semiparametric$sex)
 cox_model_inter = coxph(Surv(t_UCI, d) ~ sex, data = CCI_semiparametric)
 
@@ -54,7 +52,7 @@ curva_sup_inter <- survfit(cox_model_inter, newdata = datosnuevos, conf.type="lo
 
 ggsurvplot(fit = curva_sup_inter, data = datosnuevos, conf.int = T, title = "Curva de Supervivencia",
            xlab = "Tiempo", ylab = "Probabilidad de supervivencia")
-############################# Paréntesis #############################################################
+############################# Par?ntesis #############################################################
 ######################################################################################################
 
 # Non-CCI model
@@ -69,18 +67,18 @@ writexl::write_xlsx(schoenfeld_non_CCI_output,
                     "Paper_resultados/Cox_model/Output/Assumptions/Non_CCI/Schoenfeld_Non_CCI.xlsx")
 
 
-png(file = "Paper_resultados/Cox_model/Output/Assumptions/Non_CCI/Schoenfeld_Non_CCI_sex.png",
-    width = 400, height = 400)
+setEPS()
+postscript("Paper_resultados/Cox_model/Output/Assumptions/Non_CCI/Schoenfeld_Non_CCI_sex.eps")
 ggcoxzph(schoenfeld_non_CCI, se = TRUE,
-         var = c("sex"), point.col = "black") + labs(x = "Time", y = "??(t)", title = "", 
+         var = c("sex"), point.col = "black") + labs(x = "Time", y = "B(t)", title = "", 
                                                      subtitle = "") 
 
 dev.off()
 
 
-png(file = "Paper_resultados/Cox_model/Output/Assumptions/Non_CCI/Schoenfeld_Non_CCI_age.png",
-    width = 400, height = 400)
+setEPS()
+postscript("Paper_resultados/Cox_model/Output/Assumptions/Non_CCI/Schoenfeld_Non_CCI_age.eps")
 ggcoxzph(schoenfeld_non_CCI, se = TRUE,
-         var = c("Group_age"), point.col = "black") + labs(x = "Time", y = "??(t)", title = "", 
+         var = c("Group_age"), point.col = "black") + labs(x = "Time", y = "B(t)", title = "", 
                                                            subtitle = "")
 dev.off()

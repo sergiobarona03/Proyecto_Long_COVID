@@ -52,10 +52,7 @@ surv_input = list(flexg_weibull, flexg_lnorm, flexg_gamma,
                     flexg_loglogis, flexg_gompertz, flexg_exp)
 names(surv_input) = dist_surv
 
-png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Parametric_model_vs.png",
-    width = 500, height = 450)
-
-ggplot() + geom_line(aes(time, (est), 
+p = ggplot() + geom_line(aes(time, (est), 
                          col = names(surv_input)[1]), 
                      data = surv_input[[1]],
 ) + geom_line(aes(time, (est), 
@@ -79,17 +76,23 @@ ggplot() + geom_line(aes(time, (est),
              legend.position = c(0.8, 0.7), legend.background = element_blank()
   
                                                                                            )
-dev.off()
+
+
+p_dml = rvg::dml(ggobj = p)
+officer::read_pptx() %>% officer::add_slide() %>%
+  officer::ph_with(p_dml, ph_location()) %>%
+  base::print("Paper_resultados/Parametric_model/Survival_rate/Output/Parametric_model_vs.pptx"
+)
+
+rm(p, p_dml)
+
 
 # Funciones de riesgo acumulado
 dist_hazard <- dist_surv 
-hazard_input = dist_input
+hazard_input = surv_input
 names(hazard_input) = dist_hazard
 
-png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Hazard_model_vs.png",
-    width = 500, height = 450)
-
-ggplot() + geom_line(aes(time, -log(est), 
+p = ggplot() + geom_line(aes(time, -log(est), 
                          col = names(hazard_input)[1]), 
                      data = hazard_input[[1]],
 ) + geom_line(aes(time, -log(est), 
@@ -113,7 +116,12 @@ ggplot() + geom_line(aes(time, -log(est),
              legend.position = c(0.8, 0.3), legend.background = element_blank()
          )
 
-dev.off()
+p_dml = rvg::dml(ggobj = p)
+officer::read_pptx() %>% officer::add_slide() %>%
+  officer::ph_with(p_dml, ph_location()) %>%
+  base::print("Paper_resultados/Parametric_model/Survival_rate/Output/Hazard_model_vs.pptx")
+
+rm(p, p_dml)
 ##########################################
 ## (Criterio de información de Akaike)  ##
 ##########################################

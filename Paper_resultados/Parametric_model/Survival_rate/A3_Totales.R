@@ -56,9 +56,8 @@ writexl::write_xlsx(parametric_model_female,
                     "Paper_resultados/Parametric_model/Survival_rate/Output/Total/Sex/Outcome_female.xlsx")
 
 # Guardar la curva de supervivencia estimada
-png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Total/Sex/Curva.png",
-    width = 558, height = 407)
-
+setEPS()
+postscript("Paper_resultados/Parametric_model/Survival_rate/Output/Total/Sex/Curva.eps")
 plot(df_km_sex,  main = "", xlab = "Time since admission to ICU (days)",
      ylab = "Survival probability", col = c("black", "azure4"))
 lines(parametric_model_sex$flex[[1]], ci = TRUE,   col = "black")
@@ -67,17 +66,7 @@ legend("topright", legend = c("Male", "Female"),
        lwd = 1:(2 + 1), 
        col = c("black", "azure4"), bty = "n", fill = c("black","azure4"),
        horiz = TRUE, inset = 0.08)
-
 dev.off()
-
-plot(df_km_sex,  main = "", xlab = "Time since admission to ICU (days)",
-     ylab = "Survival probability", col = c("black", "azure4"))
-lines(parametric_model_sex$flex[[1]], ci = TRUE,   col = "black")
-lines(parametric_model_sex$flex[[2]], ci = TRUE,   col = "azure4")
-legend("topright", legend = c("Male", "Female"), 
-       lwd = 1:(2 + 1), 
-       col = c("black", "azure4"), bty = "n", fill = c("black","azure4"),
-       horiz = TRUE, inset = 0.08)
 
 ###########################################
 ## Estimación diferenciada según la edad ##
@@ -99,9 +88,8 @@ writexl::write_xlsx(parametric_model_age_2,
                     "Paper_resultados/Parametric_model/Survival_rate/Output/Total/Age/Outcome_g2.xlsx")
 
 # Guardar la curva de supervivencia estimada
-png(file = "Paper_resultados/Parametric_model/Survival_rate/Output/Total/Age/Curva.png",
-    width = 558, height = 407)
-
+setEPS()
+postscript("Paper_resultados/Parametric_model/Survival_rate/Output/Total/Age/Curva.eps")
 plot(df_km_group,  main = "", xlab = "Time since admission to ICU (days)",
      ylab = "Survival probability", col = c("black", "azure4"))
 lines(parametric_model_age$flex[[1]], ci = TRUE,   col = "black")
@@ -110,15 +98,7 @@ legend("topright", legend = c("[18,65)", "[65,Inf]"),
        lwd = 1:(2 + 1), 
        col = c("black", "azure4"), bty = "n", fill = c("black","azure4"),
        horiz = TRUE, inset = 0.08)
-
 dev.off()
 
-plot(df_km_group,  main = "", xlab = "Time since admission to ICU (days)",
-     ylab = "Survival probability", col = c("black", "azure4"))
-lines(parametric_model_age$flex[[1]], ci = TRUE,   col = "black")
-lines(parametric_model_age$flex[[2]], ci = TRUE,   col = "azure4")
-legend("topright", legend = c("[18,65)", "[65,Inf]"), 
-       lwd = 1:(2 + 1), 
-       col = c("black", "azure4"), bty = "n", fill = c("black","azure4"),
-       horiz = TRUE, inset = 0.08)
+
                                                                                                                                                                    

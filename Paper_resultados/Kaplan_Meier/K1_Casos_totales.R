@@ -6,6 +6,9 @@ library(here)
 library(survminer)
 library(survMisc)
 library(survival)
+library(officer)
+library(rvg)
+
 source(here::here("Paper_resultados/Descriptive_analysis/05_Chi_2_Fisher/", "Fisher_test.R"))
 
 ############################################
@@ -48,17 +51,21 @@ writexl::write_xlsx(outcome_1,
                     "Paper_resultados/Kaplan_Meier/Output/Total/General/Outcome.xlsx")
 
 # Guardar la curva de supervivencia estimada
-png(file = "Paper_resultados/Kaplan_Meier/Output/Total/General/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km, data = dataset_km, conf.int = T, 
+p = ggsurvplot(fit = df_km, data = dataset_km, conf.int = T, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability",
            legend.title = "",
            palette = "lightgray",
            tables.theme = theme_cleantable(),
-           ggthem = theme_bw()) 
-dev.off()
-rm(outcome_1, df_km)
+           ggthem = theme_bw())
+
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+    officer::ph_with(p_dml, ph_location()) %>%
+    base::print("Paper_resultados/Kaplan_Meier/Output/Total/General/Curva.pptx")
+rm(outcome_1, df_km, p, p_dml)
+
+
 
 ##################################
 ## B. Subpoblaciones según sexo ##
@@ -91,9 +98,7 @@ writexl::write_xlsx(outcome_m,
                     "Paper_resultados/Kaplan_Meier/Output/Total/Sex/Outcome_male.xlsx")
 
 # Guardar la curva de supervivencia estimada
-png(file = "Paper_resultados/Kaplan_Meier/Output/Total/Sex/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km_sex, data = dataset_km, 
+p = ggsurvplot(fit = df_km_sex, data = dataset_km, 
            conf.int = F, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability", 
@@ -102,7 +107,12 @@ ggsurvplot(fit = df_km_sex, data = dataset_km,
            palette = c("black", "lightgray"),
            legend.labs = c("Male", "Female"),
            ggthem = theme_bw())
-dev.off()
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+    officer::ph_with(p_dml, ph_location()) %>%
+    base::print("Paper_resultados/Kaplan_Meier/Output/Total/Sex/Curva.pptx")
+rm(p, p_dml)
+
 
 # Prueba log-rank
 mantel_all_sex = survdiff(Surv(dataset_km$Time, dataset_km$Censored) ~ Sex, 
@@ -141,9 +151,7 @@ writexl::write_xlsx(outcome_g2,
                     "Paper_resultados/Kaplan_Meier/Output/Total/Age/Outcome_g2.xlsx")
 
 # Guardar la curva de supervivencia estimada
-png(file = "Paper_resultados/Kaplan_Meier/Output/Total/Age/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km_age, data = dataset_km, 
+p = ggsurvplot(fit = df_km_age, data = dataset_km, 
            conf.int = F, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability", 
@@ -152,7 +160,11 @@ ggsurvplot(fit = df_km_age, data = dataset_km,
            palette = c("black", "gray", "lightgray"),
            legend.labs = c("[18,65)", "[65,Inf)"),
            ggthem = theme_bw())
-dev.off()
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+    officer::ph_with(p_dml, ph_location()) %>%
+    base::print("Paper_resultados/Kaplan_Meier/Output/Total/Age/Curva.pptx")
+rm(p, p_dml)
 
 # Prueba log-rank
 mantel_all_age = survdiff(Surv(dataset_km$Time, dataset_km$Censored) ~ Group, 
@@ -198,9 +210,7 @@ writexl::write_xlsx(outcome_CCI_2,
                     "Paper_resultados/Kaplan_Meier/Output/Total/CCI/Outcome_Non_CCI.xlsx")
 
 # Guardar curva de supervivencia estimada
-png(file = "Paper_resultados/Kaplan_Meier/Output/Total/CCI/Curva.png",
-    width = 558, height = 407)
-ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
+p = ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI, 
            conf.int = F, 
            xlab = "Time since admission to ICU (days)", 
            ylab = "Survival probability", 
@@ -209,7 +219,11 @@ ggsurvplot(fit = df_km_CCI, data = dataset_km_CCI,
            risk.table = FALSE,
            palette = c("black", "lightgray"),
            ggthem = theme_bw())
-dev.off()
+p_dml = rvg::dml(ggobj = p$plot)
+officer::read_pptx() %>% officer::add_slide() %>%
+    officer::ph_with(p_dml, ph_location()) %>%
+    base::print("Paper_resultados/Kaplan_Meier/Output/Total/CCI/Curva.pptx")
+rm(p, p_dml)
 
 # Prueba log-rank
 mantel_all_chronic = survdiff(Surv(dataset_km_CCI$Time, dataset_km_CCI$Censored) ~ CCI, 
